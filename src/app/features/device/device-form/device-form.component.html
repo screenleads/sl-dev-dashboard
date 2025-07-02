@@ -1,0 +1,40 @@
+<mat-card>
+    <h2>{{ isEditMode ? 'Editar' : 'Nuevo' }} Dispositivo</h2>
+    <form [formGroup]="form" (ngSubmit)="save()" class="form">
+
+        <mat-form-field appearance="outline" class="full-width">
+            <mat-label>UUID</mat-label>
+            <input matInput formControlName="uuid" required>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="full-width">
+            <mat-label>Nombre descriptivo</mat-label>
+            <input matInput formControlName="descriptionName" required>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="full-width">
+            <mat-label>Anchura</mat-label>
+            <input matInput type="number" formControlName="width" required>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="full-width">
+            <mat-label>Altura</mat-label>
+            <input matInput type="number" formControlName="height" required>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="full-width">
+            <mat-label>Tipo de dispositivo</mat-label>
+            <mat-select formControlName="typeId" required>
+                <mat-option *ngFor="let t of deviceTypes()" [value]="t.id">{{ t.type }}</mat-option>
+            </mat-select>
+        </mat-form-field>
+
+        <div class="actions">
+            <button mat-raised-button color="primary" type="submit" [disabled]="form.invalid">
+                Guardar
+            </button>
+            <button mat-button type="button" (click)="router.navigate(['/device'])">Cancelar</button>
+        </div>
+
+    </form>
+</mat-card>

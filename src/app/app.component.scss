@@ -1,0 +1,19 @@
+.layout-container {
+    height: 100vh;
+}
+
+.sidenav {
+    width: 240px;
+}
+
+.content {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+
+.page-content {
+    padding: 16px;
+    flex: 1;
+    overflow-y: auto;
+}
