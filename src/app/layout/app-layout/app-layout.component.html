@@ -1,21 +1,29 @@
 <mat-sidenav-container class="layout-container">
-    <mat-sidenav mode="side" opened class="sidenav">
-        <mat-toolbar>Admin</mat-toolbar>
-        <mat-nav-list>
-            <a mat-list-item *ngFor="let item of navItems" [routerLink]="item.path" routerLinkActive="active">
-                <mat-icon matListIcon>{{ item.icon }}</mat-icon>
-                <span>{{ item.label }}</span>
-            </a>
-        </mat-nav-list>
-    </mat-sidenav>
+  <mat-sidenav mode="side" opened class="sidenav">
+    <div class="logo-container">
+      <img src="assets/logo.svg" alt="Logo" class="logo" />
+    </div>
+    <mat-divider></mat-divider>
 
-    <mat-sidenav-content class="content">
-        <mat-toolbar color="primary">
-            <span>Panel de Administración</span>
-        </mat-toolbar>
+    <div class="user-profile">
+      <img src="assets/avatar.png" alt="Avatar" class="avatar" />
+      <span class="username">Admin</span>
+    </div>
 
-        <div class="page-content">
-            <router-outlet></router-outlet>
-        </div>
-    </mat-sidenav-content>
+
+      <a *ngFor="let item of navItems" [routerLink]="item.path" routerLinkActive="active" class="option">
+        <mat-icon matListIcon>{{ item.icon }}</mat-icon>
+        <span>{{ item.label }}</span>
+      </a>
+  </mat-sidenav>
+
+  <mat-sidenav-content class="content">
+    <mat-toolbar color="primary" class="top-toolbar">
+      <span>Panel de Administración</span>
+    </mat-toolbar>
+
+    <div class="page-content">
+      <router-outlet></router-outlet>
+    </div>
+  </mat-sidenav-content>
 </mat-sidenav-container>

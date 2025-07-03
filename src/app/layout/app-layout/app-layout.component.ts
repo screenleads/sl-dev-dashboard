@@ -31,8 +31,7 @@ export class AppLayoutComponent {
     { path: '/media', label: 'Media', icon: 'perm_media' },
     { path: '/media-types', label: 'Tipos de Media', icon: 'collections' },
     { path: '/promotion', label: 'Promociones', icon: 'local_offer' },
-    { path: '/advice', label: 'Consejos', icon: 'lightbulb' },
-    { path: '/chat-message', label: 'Mensajes', icon: 'chat' },
+    { path: '/advice', label: 'Anuncios', icon: 'lightbulb' },
     { path: '/company', label: 'Compañías', icon: 'business' }
   ];
 }

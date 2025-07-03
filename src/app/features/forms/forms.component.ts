@@ -10,15 +10,15 @@ import { MatCardModule } from '@angular/material/card';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatSelectModule } from '@angular/material/select';
 import { HttpClientModule, HttpClient } from '@angular/common/http';
-import { DeviceService } from '../../../core/services/device.service';
-import { Device } from '../models/device.model';
-import { DeviceType } from '../../device-type/models/device-type.model';
+import { Device } from '../../core/models/device.model';
+import { DeviceType } from '../../core/models/device-type.model';
+import { CrudService } from '../../core/services/crud.service';
 
 @Component({
   standalone: true,
   selector: 'app-device-form',
-  templateUrl: './device-form.component.html',
-  styleUrls: ['./device-form.component.scss'],
+  templateUrl: './forms.component.html',
+  styleUrl: './forms.component.scss',
   imports: [
     CommonModule,
     ReactiveFormsModule,
@@ -32,9 +32,9 @@ import { DeviceType } from '../../device-type/models/device-type.model';
     HttpClientModule
   ]
 })
-export class DeviceFormComponent implements OnInit {
+export class FormsComponent implements OnInit {
   private fb = inject(FormBuilder);
-  private deviceService = inject(DeviceService);
+  private deviceService = inject(CrudService);
   private http = inject(HttpClient);
   private route = inject(ActivatedRoute);
   private snackBar = inject(MatSnackBar);
@@ -51,6 +51,10 @@ export class DeviceFormComponent implements OnInit {
 
   isEditMode = false;
   deviceTypes = signal<DeviceType[]>([]);
+
+  constructor(){
+    this.getFields();
+  }
 
   ngOnInit(): void {
     this.http.get<DeviceType[]>(
@@ -98,5 +102,21 @@ export class DeviceFormComponent implements OnInit {
       this.snackBar.open('Dispositivo guardado correctamente', 'Cerrar', { duration: 2000 });
       this.router.navigate(['/device']);
     });
+  }
+
+
+
+
+
+  getFields(){
+    console.log(this.router.url);
+    switch (this.router.url) {
+      // case value:
+        
+      //   break;
+    
+      default:
+        break;
+    }
   }
 }

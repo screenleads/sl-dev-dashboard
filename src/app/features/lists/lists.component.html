@@ -1,0 +1,26 @@
+
+<mat-toolbar class="top-toolbar" >
+    <span [innerHTML]="titleList"></span>
+    <span class="spacer"></span>
+    <button mat-raised-button color="accent" routerLink="/device/new">
+        <mat-icon>add</mat-icon>
+        Nuevo
+    </button>
+</mat-toolbar>
+<app-preview-device
+  [mediaUrl]="'assets/demo.mp4'"
+  [mediaType]="'video'"
+  [deviceStyle]="'tv'">
+</app-preview-device>
+<mat-card class="table-container">
+    <table mat-table [dataSource]="items()" class="mat-elevation-z8" multiTemplateDataRows>
+
+        <ng-container [matColumnDef]="item" *ngFor="let item of properties">
+            <th mat-header-cell *matHeaderCellDef>{{item}}</th>
+            <td mat-cell *matCellDef="let d">{{ d.id }}</td>
+        </ng-container>
+        <tr mat-header-row *matHeaderRowDef="properties"></tr>
+        <tr mat-row *matRowDef="let row; columns: properties"></tr>
+
+    </table>
+</mat-card>

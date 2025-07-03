@@ -1,0 +1,6 @@
+<div class="device" [ngClass]="deviceStyle">
+  <div class="screen">
+    <img *ngIf="mediaType === 'image'" [src]="mediaUrl" alt="Preview" />
+    <video *ngIf="mediaType === 'video'" [src]="mediaUrl" controls></video>
+  </div>
+</div>
