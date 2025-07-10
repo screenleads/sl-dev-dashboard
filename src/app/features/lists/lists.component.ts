@@ -1,25 +1,24 @@
 // src/app/features/device/device-list.component.ts
-import { Component, effect, inject, WritableSignal } from '@angular/core';
+import { Component, WritableSignal, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { Router, RouterModule } from '@angular/router';
+import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { MatTableModule } from '@angular/material/table';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatToolbarModule } from '@angular/material/toolbar';
 import { MatCardModule } from '@angular/material/card';
-import { MatSlideToggle } from '@angular/material/slide-toggle';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
-import { signal } from '@angular/core';
-import { DeviceType, DeviceTypeModel } from '../../core/models/device-type.model';
+import { PreviewDeviceComponent } from '../preview-device/preview-device.component';
+
 import { CrudService } from '../../core/services/crud.service';
-import { Device, DeviceModel } from '../../core/models/device.model';
-import { ActivatedRoute } from '@angular/router';
-import { Media, MediaModel } from '../../core/models/media.model';
-import { MediaType, MediaTypeModel } from '../../core/models/media-type.model';
-import { Promotion, PromotionModel } from '../../core/models/promotion.model';
-import { Company, CompanyModel } from '../../core/models/company.model';
-import { Advice, AdviceModel } from '../../core/models/advice.model';
-import { PreviewDeviceComponent } from "../preview-device/preview-device.component";
+import { DeviceModel } from '../../core/models/device.model';
+import { DeviceTypeModel } from '../../core/models/device-type.model';
+import { MediaModel } from '../../core/models/media.model';
+import { MediaTypeModel } from '../../core/models/media-type.model';
+import { PromotionModel } from '../../core/models/promotion.model';
+import { CompanyModel } from '../../core/models/company.model';
+import { AdviceModel } from '../../core/models/advice.model';
+
 @Component({
   standalone: true,
   selector: 'app-lists',
@@ -28,7 +27,6 @@ import { PreviewDeviceComponent } from "../preview-device/preview-device.compone
     RouterModule,
     MatTableModule,
     MatButtonModule,
-    MatSlideToggle,
     MatIconModule,
     MatToolbarModule,
     MatCardModule,
@@ -39,136 +37,73 @@ import { PreviewDeviceComponent } from "../preview-device/preview-device.compone
   styleUrl: './lists.component.scss'
 })
 export class ListsComponent {
-  private service = inject(CrudService);;
+  private service = inject(CrudService);
   private snackBar = inject(MatSnackBar);
-  titleList = "";
-  router = inject(Router);
-  route = inject(ActivatedRoute);
+  public router = inject(Router);
+  private route = inject(ActivatedRoute);
+
+  titleList = '';
+  items: WritableSignal<any[]> = signal([]);
   properties: string[] = [];
-  items!: WritableSignal<any[]>;
-  path: WritableSignal<string> = signal<string>('');
-  constructor() {
-    this.initConfig();
-    this.initList();
-    this.loadDevices();
-    effect(() => {
-      console.log('Contador cambió a:', this.path);
-      this.initConfig();
-      this.initList();
-      this.loadDevices();
-    });
-  }
+  displayedColumns: string[] = [];
 
-  isObject(obj: any) {
-    return typeof (obj) === 'object' && obj !== null;
-  }
-  extractValue(obj: any, reference: string) {
-    console.log(reference);
-
-    switch (reference) {
-      case 'type':
-        return obj.type;
-        break;
-      case 'company':
-        console.log(obj);
-        return obj.name;
-        break;
-      case 'media':
-        return obj.src;
-        break;
-      case 'promotion':
-        return obj.description;
-        break;
-
-      default:
-        break;
-    }
-  }
-  ngOnInit() {
+  ngOnInit(): void {
     this.route.paramMap.subscribe(params => {
-      this.path.set(params.get('path')!);
+      const path = params.get('path');
+      if (path) {
+        this.configureForPath('/' + path);
+      }
     });
   }
 
-  loadDevices() {
+  configureForPath(path: string) {
+    const configMap: Record<string, { endpoint: string, model: any, title: string }> = {
+      '/device': { endpoint: 'devices', model: new DeviceModel(), title: 'Dispositivos' },
+      '/device-types': { endpoint: 'devices/types', model: new DeviceTypeModel(), title: 'Tipos de Dispositivos' },
+      '/media': { endpoint: 'medias', model: new MediaModel(), title: 'Multimedia' },
+      '/media-types': { endpoint: 'medias/types', model: new MediaTypeModel(), title: 'Tipos de Multimedia' },
+      '/promotion': { endpoint: 'promotion', model: new PromotionModel(), title: 'Promociones' },
+      '/company': { endpoint: 'companies', model: new CompanyModel(), title: 'Compañías' },
+      '/advice': { endpoint: 'advices', model: new AdviceModel(), title: 'Anuncios' },
+    };
+
+    const config = configMap[path];
+    if (!config) {
+      this.titleList = 'Entidad desconocida';
+      return;
+    }
+
+    this.titleList = config.title;
+    this.properties = Object.keys(config.model);
+    this.displayedColumns = [...this.properties, 'acciones'];
+
+    this.service.init(config.endpoint);
     this.service.getAll().subscribe((data: any[]) => {
       this.items.set(data);
       console.log('Items loaded:', this.items());
     });
   }
 
+  isObject(obj: any) {
+    return typeof obj === 'object' && obj !== null;
+  }
+
+  extractValue(obj: any, reference: string) {
+    switch (reference) {
+      case 'type': return obj?.type;
+      case 'company': return obj?.name;
+      case 'media': return obj?.src;
+      case 'promotion': return obj?.description;
+      default: return '';
+    }
+  }
+
   delete(id: number) {
-    if (confirm('¿Eliminar dispositivo?')) {
+    if (confirm('¿Eliminar elemento?')) {
       this.service.delete(id).subscribe(() => {
-        this.snackBar.open('Dispositivo eliminado', 'Cerrar', { duration: 2000 });
-        this.loadDevices();
+        this.snackBar.open('Elemento eliminado', 'Cerrar', { duration: 2000 });
+        this.configureForPath(this.router.url);
       });
     }
   }
-  initConfig() {
-    switch (this.router.url) {
-      case '/device':
-        this.items = signal<Device[]>([]);
-        this.service.init('devices');
-        this.titleList = "Dispositivos"
-        return;
-      case '/device-types':
-        this.items = signal<DeviceType[]>([]);
-        this.service.init('devices/types');
-        this.titleList = "Tipos de dispositivos"
-        return;
-      case '/media':
-        this.items = signal<Media[]>([]);
-        this.service.init('medias');
-        this.titleList = "Multmedia"
-        return;
-      case '/media-types':
-        this.items = signal<MediaType[]>([]);
-        this.service.init('medias/types');
-        this.titleList = "Tipos de multimedia"
-        return;
-      case '/promotion':
-        this.items = signal<Promotion[]>([]);
-        this.service.init('promotion');
-        this.titleList = "Promociones"
-        return;
-      case '/company':
-        this.items = signal<Company[]>([]);
-        this.service.init('companies');
-        this.titleList = "Compañías"
-        return;
-      case '/advice':
-        this.items = signal<Advice[]>([]);
-        this.service.init('advices');
-        this.titleList = "Anuncios"
-        return;
-      default:
-        this.items = signal<any[]>([]);
-        this.titleList = "Lista de elementos";
-        return;
-    }
-  }
-  initList() {
-    const modelMap: Record<string, () => object> = {
-      '/device': () => new DeviceModel(),
-      '/device-types': () => new DeviceTypeModel(),
-      '/media': () => new MediaModel(),
-      '/media-types': () => new MediaTypeModel(),
-      '/promotion': () => new PromotionModel(),
-      '/company': () => new CompanyModel(),
-      '/advice': () => new AdviceModel()
-    };
-
-    const currentPath = this.router.url;
-    console.log(currentPath);
-
-    const modelFactory = modelMap[currentPath];
-
-    if (modelFactory) {
-      const instance = modelFactory();
-      this.properties = Object.keys(instance);
-      console.log('Properties:', this.properties);
-    }
-  }
-
 }

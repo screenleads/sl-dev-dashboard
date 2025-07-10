@@ -1,39 +1,41 @@
 <mat-toolbar class="top-toolbar">
-    <span [innerHTML]="titleList"></span>
-    <span class="spacer"></span>
-    <button mat-raised-button color="accent" routerLink="/device/new">
-        <mat-icon>add</mat-icon>
-        Nuevo
-    </button>
+  <span>{{ titleList }}</span>
+  <span class="spacer"></span>
+  <button mat-raised-button color="accent" [routerLink]="[router.url, 'new']">
+    <mat-icon>add</mat-icon>
+    Nuevo
+  </button>
 </mat-toolbar>
-<!-- <app-preview-device
-  [mediaUrl]="'assets/demo.mp4'"
-  [mediaType]="'video'"
-  [deviceStyle]="'tv'">
-</app-preview-device> -->
-<mat-card class="table-container">
-    <table mat-table [dataSource]="items()" class="mat-elevation-z8" multiTemplateDataRows>
 
-        <ng-container [matColumnDef]="item" *ngFor="let item of properties">
-            <th mat-header-cell *matHeaderCellDef>{{item}}</th>
-            <td mat-cell *matCellDef="let d">{{isObject(d[item]) ? extractValue(d[item], item) :
-                d[item] }}</td>
-        </ng-container>
-        <tr mat-header-row *matHeaderRowDef="properties"></tr>
-        <tr mat-row *matRowDef="let row; columns: properties"></tr>
-        <ng-container matColumnDef="acciones">
-            <th mat-header-cell *matHeaderCellDef>Acciones</th>
-            <td mat-cell *matCellDef="let d">
-                <button mat-icon-button color="primary" [routerLink]="['/device', d.id]">
-                    <mat-icon>visibility</mat-icon>
-                </button>
-                <button mat-icon-button color="accent" [routerLink]="['/device', 'edit', d.id]">
-                    <mat-icon>edit</mat-icon>
-                </button>
-                <button mat-icon-button color="warn" (click)="delete(d.id)">
-                    <mat-icon>delete</mat-icon>
-                </button>
-            </td>
-        </ng-container>
-    </table>
+<mat-card class="table-container" *ngIf="displayedColumns.length">
+  <table mat-table [dataSource]="items()" class="mat-elevation-z8" multiTemplateDataRows>
+
+    <!-- Columnas dinámicas -->
+    <ng-container [matColumnDef]="item" *ngFor="let item of properties">
+      <th mat-header-cell *matHeaderCellDef>{{ item }}</th>
+      <td mat-cell *matCellDef="let d">
+        {{ isObject(d[item]) ? extractValue(d[item], item) : d[item] }}
+      </td>
+    </ng-container>
+
+    <!-- Columna acciones -->
+    <ng-container matColumnDef="acciones">
+      <th mat-header-cell *matHeaderCellDef>Acciones</th>
+      <td mat-cell *matCellDef="let d">
+        <!-- <button mat-icon-button color="primary" [routerLink]="[router.url, d.id]">
+          <mat-icon>visibility</mat-icon>
+        </button> -->
+        <button mat-icon-button color="accent" [routerLink]="[router.url, 'edit', d.id]">
+          <mat-icon>edit</mat-icon>
+        </button>
+        <button mat-icon-button color="warn" (click)="delete(d.id)">
+          <mat-icon>delete</mat-icon>
+        </button>
+      </td>
+    </ng-container>
+
+    <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+    <tr mat-row *matRowDef="let row; columns: displayedColumns"></tr>
+
+  </table>
 </mat-card>

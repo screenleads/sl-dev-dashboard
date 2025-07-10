@@ -1,6 +1,17 @@
 <div class="device" [ngClass]="deviceStyle">
   <div class="screen">
+    <mat-icon 
+      id="play" 
+      *ngIf="mediaType === 'video' && !isPlaying" 
+      (click)="playVideo()">play_circle</mat-icon>
+
     <img *ngIf="mediaType === 'image'" [src]="mediaUrl" alt="Preview" />
-    <video *ngIf="mediaType === 'video'" [src]="mediaUrl" controls></video>
+
+    <video 
+      #videoPlayer
+      *ngIf="mediaType === 'video'" 
+      [src]="mediaUrl" 
+      (click)="togglePlayPause(videoPlayer)">
+    </video>
   </div>
 </div>
