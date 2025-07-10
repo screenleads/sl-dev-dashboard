@@ -9,9 +9,9 @@ export class CrudService {
     private http = inject(HttpClient);
     private apiUrl = '';
     init(domain: string): void {
-        this.apiUrl = 'http://localhost:3000/';
-        if (domain) {   
-            this.apiUrl += domain + '/';
+        this.apiUrl = 'https://sl-dev-backend-7ab91220ba93.herokuapp.com/';
+        if (domain) {
+            this.apiUrl += domain;
         }
     }
     getAll(): Observable<any[]> {

@@ -34,12 +34,12 @@ import { PreviewDeviceComponent } from "../preview-device/preview-device.compone
     MatCardModule,
     MatSnackBarModule,
     PreviewDeviceComponent
-],
+  ],
   templateUrl: './lists.component.html',
   styleUrl: './lists.component.scss'
 })
 export class ListsComponent {
-  private service =  inject(CrudService);;
+  private service = inject(CrudService);;
   private snackBar = inject(MatSnackBar);
   titleList = "";
   router = inject(Router);
@@ -49,18 +49,42 @@ export class ListsComponent {
   path: WritableSignal<string> = signal<string>('');
   constructor() {
     this.initConfig();
-      this.initList();
-      this.loadDevices();
+    this.initList();
+    this.loadDevices();
     effect(() => {
-      console.log('Contador cambió a:',this.path);
+      console.log('Contador cambió a:', this.path);
       this.initConfig();
       this.initList();
       this.loadDevices();
     });
   }
 
+  isObject(obj: any) {
+    return typeof (obj) === 'object' && obj !== null;
+  }
+  extractValue(obj: any, reference: string) {
+    console.log(reference);
 
-   ngOnInit() {
+    switch (reference) {
+      case 'type':
+        return obj.type;
+        break;
+      case 'company':
+        console.log(obj);
+        return obj.name;
+        break;
+      case 'media':
+        return obj.src;
+        break;
+      case 'promotion':
+        return obj.description;
+        break;
+
+      default:
+        break;
+    }
+  }
+  ngOnInit() {
     this.route.paramMap.subscribe(params => {
       this.path.set(params.get('path')!);
     });
@@ -82,25 +106,25 @@ export class ListsComponent {
     }
   }
   initConfig() {
-     switch (this.router.url) {
+    switch (this.router.url) {
       case '/device':
         this.items = signal<Device[]>([]);
-        this.service.init('device');
+        this.service.init('devices');
         this.titleList = "Dispositivos"
         return;
       case '/device-types':
         this.items = signal<DeviceType[]>([]);
-        this.service.init('device-types');
+        this.service.init('devices/types');
         this.titleList = "Tipos de dispositivos"
         return;
       case '/media':
         this.items = signal<Media[]>([]);
-        this.service.init('media');
+        this.service.init('medias');
         this.titleList = "Multmedia"
         return;
       case '/media-types':
         this.items = signal<MediaType[]>([]);
-        this.service.init('media-types');
+        this.service.init('medias/types');
         this.titleList = "Tipos de multimedia"
         return;
       case '/promotion':
@@ -110,21 +134,21 @@ export class ListsComponent {
         return;
       case '/company':
         this.items = signal<Company[]>([]);
-        this.service.init('company');
+        this.service.init('companies');
         this.titleList = "Compañías"
         return;
       case '/advice':
         this.items = signal<Advice[]>([]);
-        this.service.init('advice');
+        this.service.init('advices');
         this.titleList = "Anuncios"
         return;
       default:
         this.items = signal<any[]>([]);
         this.titleList = "Lista de elementos";
         return;
-     }
+    }
   }
-   initList(){
+  initList() {
     const modelMap: Record<string, () => object> = {
       '/device': () => new DeviceModel(),
       '/device-types': () => new DeviceTypeModel(),
@@ -145,6 +169,6 @@ export class ListsComponent {
       this.properties = Object.keys(instance);
       console.log('Properties:', this.properties);
     }
-}
+  }
 
 }

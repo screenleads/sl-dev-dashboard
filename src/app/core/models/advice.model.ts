@@ -1,18 +1,33 @@
 
 import { Company, CompanyModel } from './company.model';
-
+import { Media } from './media.model';
+import { Promotion } from './promotion.model';
 export interface Advice {
-  id?: number;
-  message: string;
-  company: Company;
+  id: number;
+  description: string;
+  customInterval: boolean;
+  interval: number;
+
+  company?: Company;
+  media?: Media;
+  promotion?: Promotion;
 }
-
 export class AdviceModel implements Advice {
-  id?: number = undefined;
-  message = '';
-  company = new CompanyModel();
+  id: number;
+  description: string;
+  customInterval: boolean;
+  interval: number;
+  company?: Company;
+  media?: Media;
+  promotion?: Promotion;
 
-  constructor(init?: Partial<Advice>) {
-    Object.assign(this, init);
+  constructor(data?: Partial<Advice>) {
+    this.id = data?.id ?? 0;
+    this.description = data?.description ?? '';
+    this.customInterval = data?.customInterval ?? false;
+    this.interval = data?.interval ?? 0;
+    this.company = data?.company;
+    this.media = data?.media;
+    this.promotion = data?.promotion;
   }
 }
