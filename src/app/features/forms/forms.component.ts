@@ -12,9 +12,10 @@ import { MatDividerModule } from '@angular/material/divider';
 import { RouterModule, ActivatedRoute, Router } from '@angular/router';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { ReactiveFormsModule } from '@angular/forms';
-
 import { CrudService } from '../../core/services/crud.service';
 import { PreviewDeviceComponent } from "../preview-device/preview-device.component";
+import { DefaultModelFactory } from '../../core/models/default-model.factory';
+
 
 @Component({
   standalone: true,
@@ -59,8 +60,6 @@ export class FormsComponent implements OnInit {
     const url = this.router.url;
     const pathParts = url.split('/');
     this.entityName = pathParts[1];
-    console.log(id, this.entityName);
-
 
     if (this.entityName === 'advice') {
       this.mediaService.init('medias');
@@ -73,9 +72,10 @@ export class FormsComponent implements OnInit {
       });
     }
 
+    this.service.init(this.getEndpoint(this.entityName));
+
     if (id) {
       this.isEditMode = true;
-      this.service.init(this.getEndpoint(this.entityName));
       this.service.getById(+id).subscribe({
         next: (data) => this.buildForm(data),
         error: () => {
@@ -84,7 +84,8 @@ export class FormsComponent implements OnInit {
         }
       });
     } else {
-      this.buildForm({});
+      const emptyModel = DefaultModelFactory.create(this.entityName);
+      this.buildForm(emptyModel);
     }
   }
 

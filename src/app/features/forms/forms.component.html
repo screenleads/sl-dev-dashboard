@@ -1,21 +1,30 @@
-<mat-card>
+<mat-card *ngIf="form">
   <h2>{{ isEditMode ? 'Editar' : 'Nuevo' }} {{ entityName | titlecase }}</h2>
-  <form *ngIf="form" [formGroup]="form" (ngSubmit)="save()" class="form">
 
-    <mat-form-field appearance="outline" class="full-width" *ngIf="form.get('description')">
-      <mat-label>Descripción</mat-label>
-      <input matInput formControlName="description" required />
-    </mat-form-field>
+  <form [formGroup]="form" (ngSubmit)="save()" class="form">
+    <!-- Campos genéricos basados en keys -->
+    <ng-container *ngFor="let key of form?.controls | keyvalue">
+      <!-- Descripción de campo: solo para texto -->
+      <mat-form-field appearance="outline" class="full-width"
+                      *ngIf="form.get(key.key) && key.key !== 'media' && key.key !== 'promotion' && key.key !== 'visibilityRules'">
+        <mat-label>{{ key.key | titlecase }}</mat-label>
+        <input matInput [formControlName]="key.key" />
+      </mat-form-field>
+    </ng-container>
 
+    <!-- Toggle personalizado -->
     <mat-slide-toggle *ngIf="form.get('customInterval')" formControlName="customInterval">
       Intervalo personalizado
     </mat-slide-toggle>
 
-    <mat-form-field appearance="outline" class="full-width" *ngIf="form.get('interval') && form.get('customInterval')?.value">
+    <!-- Campo de intervalo solo si customInterval está activado -->
+    <mat-form-field appearance="outline" class="full-width"
+                    *ngIf="form.get('interval') && form.get('customInterval')?.value">
       <mat-label>Intervalo (segundos)</mat-label>
       <input matInput type="number" formControlName="interval" />
     </mat-form-field>
 
+    <!-- Selector multimedia -->
     <mat-form-field appearance="outline" class="full-width" *ngIf="form.get('media')">
       <mat-label>Multimedia</mat-label>
       <mat-select formControlName="media" [compareWith]="compareById">
@@ -25,6 +34,7 @@
       </mat-select>
     </mat-form-field>
 
+    <!-- Selector promoción -->
     <mat-form-field appearance="outline" class="full-width" *ngIf="form.get('promotion')">
       <mat-label>Promoción</mat-label>
       <mat-select formControlName="promotion" [compareWith]="compareById">
@@ -34,6 +44,7 @@
       </mat-select>
     </mat-form-field>
 
+    <!-- Reglas de visibilidad -->
     <div class="visibility-rules" *ngIf="visibilityRules">
       <h3>Reglas de visibilidad</h3>
       <button mat-mini-fab color="primary" (click)="addVisibilityRule()" type="button">
@@ -80,6 +91,7 @@
       </div>
     </div>
 
+    <!-- Botones -->
     <div class="actions">
       <button mat-raised-button color="primary" type="submit" [disabled]="form.invalid">
         Guardar
@@ -87,10 +99,11 @@
       <button mat-button type="button" (click)="router.navigate(['/' + entityName])">Cancelar</button>
     </div>
   </form>
-   <app-preview-device
-      *ngIf="entityName === 'advice' && form && form.get('media')?.value?.src"
-      mediaType="video"
-      [mediaUrl]="form.get('media')?.value?.src"
-    ></app-preview-device>
 
+  <!-- Vista previa de video solo para Advice -->
+  <app-preview-device
+    *ngIf="entityName === 'advice' && form && form.get('media')?.value?.src"
+    mediaType="video"
+    [mediaUrl]="form.get('media')?.value?.src">
+  </app-preview-device>
 </mat-card>
