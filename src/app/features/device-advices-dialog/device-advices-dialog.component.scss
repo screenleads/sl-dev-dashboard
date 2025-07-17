@@ -1,0 +1,48 @@
+.dialog-title {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 1.25rem;
+    font-weight: bold;
+}
+
+.dialog-content {
+    padding-top: 1rem;
+}
+
+.advice-assignment {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+    padding: 0.5rem 0;
+    gap: 1rem;
+}
+
+.advice-info {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-weight: 500;
+}
+
+.advice-actions button {
+    white-space: nowrap;
+}
+
+.preview-link {
+    font-size: 0.85rem;
+    text-decoration: underline;
+    color: #1976d2;
+}
+
+.empty-message {
+    text-align: center;
+    color: #777;
+    margin-top: 1rem;
+    font-style: italic;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+}

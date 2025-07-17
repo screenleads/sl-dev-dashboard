@@ -1,8 +1,44 @@
-.top-toolbar{
+.top-toolbar {
     display: flex;
     justify-content: space-between;
     align-items: center;
     padding: 0.5rem 1rem;
     background-color: #303d51;
     color: white;
+}
+
+.table-container {
+    margin-top: 1rem;
+}
+
+mat-icon {
+    vertical-align: middle;
+}
+
+button[mat-icon-button] {
+    margin-right: 0.5rem;
+}
+
+mat-card {
+    overflow-x: auto;
+}
+
+.advice-assignment {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+    padding: 0.5rem 0;
+}
+
+.advice-assignment .assigned {
+    color: green;
+    font-weight: bold;
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.advice-assignment .unassign-button {
+    color: red;
 }

@@ -5,9 +5,9 @@ export interface TimeRange {
   fromTime: string;
   toTime: string;
 }
-
+export type WeekDay = 'MONDAY' | 'TUESDAY' | 'WEDNESDAY' | 'THURSDAY' | 'FRIDAY' | 'SATURDAY' | 'SUNDAY';
 export interface AdviceVisibilityRule {
-  day: string;
+  day: WeekDay;
   timeRanges: TimeRange[];
 }
 
@@ -18,7 +18,7 @@ export interface Advice {
   interval: number;
   media?: Media;
   promotion?: Promotion;
-  visibilityRules?: AdviceVisibilityRule[];
+  visibilityRules: AdviceVisibilityRule[];
 }
 
 export class AdviceModel implements Advice {
@@ -32,5 +32,8 @@ export class AdviceModel implements Advice {
 
   constructor(data?: Partial<Advice>) {
     Object.assign(this, data);
+  }
+  hasVisibilityRules(): boolean {
+    return this.visibilityRules && this.visibilityRules.length > 0;
   }
 }

@@ -12,10 +12,16 @@ import { MatDividerModule } from '@angular/material/divider';
 import { RouterModule, ActivatedRoute, Router } from '@angular/router';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { ReactiveFormsModule } from '@angular/forms';
+import { HttpClientModule, HttpClient } from '@angular/common/http';
 import { CrudService } from '../../core/services/crud.service';
 import { PreviewDeviceComponent } from "../preview-device/preview-device.component";
 import { DefaultModelFactory } from '../../core/models/default-model.factory';
-
+import { MatTableModule } from '@angular/material/table';
+import {
+  SlButtonComponent,
+  SlIconComponent,
+  SlModuleTitleComponent
+} from 'sl-dev-components';
 
 @Component({
   standalone: true,
@@ -27,6 +33,7 @@ import { DefaultModelFactory } from '../../core/models/default-model.factory';
     FormsModule,
     ReactiveFormsModule,
     RouterModule,
+    HttpClientModule,
     MatCardModule,
     MatFormFieldModule,
     MatInputModule,
@@ -36,7 +43,11 @@ import { DefaultModelFactory } from '../../core/models/default-model.factory';
     MatIconModule,
     MatDividerModule,
     MatSnackBarModule,
-    PreviewDeviceComponent
+    PreviewDeviceComponent,
+    MatTableModule,
+    SlButtonComponent,
+    SlIconComponent,
+    SlModuleTitleComponent
   ]
 })
 export class FormsComponent implements OnInit {
@@ -47,13 +58,18 @@ export class FormsComponent implements OnInit {
   private service = inject(CrudService);
   private mediaService = inject(CrudService);
   private promoService = inject(CrudService);
+  private foreignService = inject(CrudService);
+  private http = inject(HttpClient);
 
   form: FormGroup | null = null;
   isEditMode = false;
   mediaList: any[] = [];
   promotionList: any[] = [];
+  foreignEntityLists: Record<string, any[]> = {};
   daysOfWeek = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY', 'SUNDAY'];
   public entityName = '';
+  uploading = false;
+  previewUrl: string | null = null;
 
   async ngOnInit(): Promise<void> {
     const id = this.route.snapshot.paramMap.get('id');
@@ -70,6 +86,16 @@ export class FormsComponent implements OnInit {
         next: promotions => this.promotionList = promotions ?? [],
         error: () => this.promotionList = []
       });
+    } else {
+      const foreignConfigs: { key: string, endpoint: string }[] = [
+        { key: 'company', endpoint: 'companies' },
+        { key: 'type', endpoint: this.entityName === 'media' ? 'medias/types' : 'devices/types' }
+      ];
+
+      foreignConfigs.forEach(cfg => {
+        this.foreignService.init(cfg.endpoint);
+        this.foreignService.getAll().subscribe(data => this.foreignEntityLists[cfg.key] = data ?? []);
+      });
     }
 
     this.service.init(this.getEndpoint(this.entityName));
@@ -77,7 +103,12 @@ export class FormsComponent implements OnInit {
     if (id) {
       this.isEditMode = true;
       this.service.getById(+id).subscribe({
-        next: (data) => this.buildForm(data),
+        next: (data) => {
+          this.buildForm(data);
+          if (this.entityName === 'media' && data.src) {
+            this.previewUrl = data.src;
+          }
+        },
         error: () => {
           this.snackBar.open('No se pudo cargar el elemento', 'Cerrar', { duration: 3000 });
           this.router.navigate(['/' + this.entityName]);
@@ -93,9 +124,11 @@ export class FormsComponent implements OnInit {
     const map: Record<string, string> = {
       advice: 'advices',
       media: 'medias',
+      'media-types': 'medias/types',
       promotion: 'promotion',
       device: 'devices',
-      'device-types': 'devices/types'
+      'device-types': 'devices/types',
+      company: 'companies'
     };
     return map[entity] ?? entity;
   }
@@ -129,10 +162,8 @@ export class FormsComponent implements OnInit {
             })
           )
         );
-      } else if (key === 'media' || key === 'promotion') {
-        const list: any[] = key === 'media' ? this.mediaList : this.promotionList;
-        const match = list.find(item => item?.id === model[key]?.id);
-        group[key] = [match ?? null];
+      } else if (typeof model[key] === 'object' && model[key] !== null && 'id' in model[key]) {
+        group[key] = [model[key] ?? null];
       } else if (typeof model[key] === 'boolean') {
         group[key] = [model[key] ?? false];
       } else if (typeof model[key] === 'number') {
@@ -147,10 +178,6 @@ export class FormsComponent implements OnInit {
 
   get visibilityRules(): FormArray {
     return this.form?.get('visibilityRules') as FormArray;
-  }
-
-  getVisibilityRulesIndexes(): number[] {
-    return this.visibilityRules?.controls?.map((_, i) => i) ?? [];
   }
 
   getTimeRanges(ruleIndex: number): FormArray {
@@ -198,4 +225,55 @@ export class FormsComponent implements OnInit {
   }
 
   compareById = (a: any, b: any) => a?.id === b?.id;
+
+  shouldRenderTextField(key: string): boolean {
+    const ctrl = this.form?.get(key);
+    const val = ctrl?.value;
+    return (!val || typeof val !== 'object' || !('id' in val)) && !['customInterval', 'visibilityRules', 'src'].includes(key);
+  }
+
+  shouldRenderSelectField(key: string): boolean {
+    const ctrl = this.form?.get(key);
+    const val = ctrl?.value;
+    return val && typeof val === 'object' && 'id' in val;
+  }
+
+  getOptionLabel(option: any, key: string): string {
+    if (!option) return '';
+    const labelMap: Record<string, string> = {
+      company: option.name,
+      type: option.type,
+      media: option.src,
+      promotion: option.description,
+      description: option.description,
+      name: option.name,
+      uuid: option.uuid
+    };
+    return labelMap[key] || option.name || option.description || option.uuid || ('ID ' + option.id);
+  }
+
+  uploadFile(event: Event) {
+    const file = (event.target as HTMLInputElement).files?.[0];
+    if (!file || !this.form) return;
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    this.uploading = true;
+
+    this.service.init('medias');
+    this.service.createCustom('upload', formData)
+      .subscribe({
+        next: res => {
+          this.form!.get('src')?.setValue(res.url);
+          this.previewUrl = res.url;
+          this.snackBar.open('Archivo subido correctamente', 'Cerrar', { duration: 2000 });
+        },
+        error: err => {
+          console.error(err);
+          this.snackBar.open('Error al subir el archivo', 'Cerrar', { duration: 3000 });
+        },
+        complete: () => this.uploading = false
+      });
+  }
 }

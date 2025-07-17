@@ -1,4 +1,3 @@
-// src/app/features/device/device-list.component.ts
 import { Component, WritableSignal, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
@@ -8,7 +7,9 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatToolbarModule } from '@angular/material/toolbar';
 import { MatCardModule } from '@angular/material/card';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
+import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { PreviewDeviceComponent } from '../preview-device/preview-device.component';
+
 
 import { CrudService } from '../../core/services/crud.service';
 import { DeviceModel } from '../../core/models/device.model';
@@ -18,6 +19,7 @@ import { MediaTypeModel } from '../../core/models/media-type.model';
 import { PromotionModel } from '../../core/models/promotion.model';
 import { CompanyModel } from '../../core/models/company.model';
 import { AdviceModel } from '../../core/models/advice.model';
+import { DeviceAdvicesDialogComponent } from '../device-advices-dialog/device-advices-dialog.component';
 
 @Component({
   standalone: true,
@@ -31,6 +33,7 @@ import { AdviceModel } from '../../core/models/advice.model';
     MatToolbarModule,
     MatCardModule,
     MatSnackBarModule,
+    MatDialogModule,
     PreviewDeviceComponent
   ],
   templateUrl: './lists.component.html',
@@ -39,6 +42,7 @@ import { AdviceModel } from '../../core/models/advice.model';
 export class ListsComponent {
   private service = inject(CrudService);
   private snackBar = inject(MatSnackBar);
+  private dialog = inject(MatDialog);
   public router = inject(Router);
   private route = inject(ActivatedRoute);
 
@@ -80,7 +84,6 @@ export class ListsComponent {
     this.service.init(config.endpoint);
     this.service.getAll().subscribe((data: any[]) => {
       this.items.set(data);
-      console.log('Items loaded:', this.items());
     });
   }
 
@@ -105,5 +108,12 @@ export class ListsComponent {
         this.configureForPath(this.router.url);
       });
     }
+  }
+
+  openAdviceDialog(deviceId: number): void {
+    this.dialog.open(DeviceAdvicesDialogComponent, {
+      data: { deviceId },
+      width: '600px'
+    });
   }
 }

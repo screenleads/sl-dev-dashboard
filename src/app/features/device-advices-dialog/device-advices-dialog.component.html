@@ -1,0 +1,37 @@
+<h2 mat-dialog-title class="dialog-title">
+    <mat-icon>playlist_add_check_circle</mat-icon>
+    <span>Anuncios asignados</span>
+</h2>
+
+<mat-dialog-content class="dialog-content">
+    <mat-list *ngIf="allAdvices.length">
+        <mat-list-item *ngFor="let advice of allAdvices">
+            <div class="advice-assignment">
+                <div class="advice-info">
+                    <mat-icon mat-list-icon color="primary">campaign</mat-icon>
+                    <a [routerLink]="['/advice/edit/', advice.id]" class="preview-link"><span>{{ advice.description
+                            }}</span></a>
+                </div>
+                <div class="advice-actions">
+                    <ng-container *ngIf="!isAssigned(advice); else assignedBlock">
+                        <button mat-stroked-button color="primary" (click)="assignAdvice(advice.id)">
+                            <mat-icon>add</mat-icon> Asignar
+                        </button>
+                    </ng-container>
+                    <ng-template #assignedBlock>
+                        <button mat-stroked-button color="warn" (click)="unassignAdvice(advice.id)">
+                            <mat-icon>remove_circle</mat-icon> Quitar
+                        </button>
+                    </ng-template>
+                </div>
+            </div>
+        </mat-list-item>
+    </mat-list>
+    <p *ngIf="!allAdvices.length" class="empty-message">
+        <mat-icon>info</mat-icon> No hay anuncios disponibles.
+    </p>
+</mat-dialog-content>
+
+<mat-dialog-actions align="end">
+    <button mat-flat-button color="basic" mat-dialog-close>Cerrar</button>
+</mat-dialog-actions>

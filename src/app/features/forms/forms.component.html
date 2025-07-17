@@ -1,109 +1,177 @@
 <mat-card *ngIf="form">
-  <h2>{{ isEditMode ? 'Editar' : 'Nuevo' }} {{ entityName | titlecase }}</h2>
+  <div style="display: flex; gap: 24px;">
 
-  <form [formGroup]="form" (ngSubmit)="save()" class="form">
-    <!-- Campos genéricos basados en keys -->
-    <ng-container *ngFor="let key of form?.controls | keyvalue">
-      <!-- Descripción de campo: solo para texto -->
-      <mat-form-field appearance="outline" class="full-width"
-                      *ngIf="form.get(key.key) && key.key !== 'media' && key.key !== 'promotion' && key.key !== 'visibilityRules'">
-        <mat-label>{{ key.key | titlecase }}</mat-label>
-        <input matInput [formControlName]="key.key" />
-      </mat-form-field>
-    </ng-container>
+    <!-- Columna izquierda: Formulario -->
+    <div style="flex: 2;" id="form-container">
+      <h2 style="margin-bottom: 16px;">{{ isEditMode ? 'Editar' : 'Nuevo' }} {{ entityName | titlecase }}</h2>
 
-    <!-- Toggle personalizado -->
-    <mat-slide-toggle *ngIf="form.get('customInterval')" formControlName="customInterval">
-      Intervalo personalizado
-    </mat-slide-toggle>
+      <form [formGroup]="form" (ngSubmit)="save()" class="form">
 
-    <!-- Campo de intervalo solo si customInterval está activado -->
-    <mat-form-field appearance="outline" class="full-width"
-                    *ngIf="form.get('interval') && form.get('customInterval')?.value">
-      <mat-label>Intervalo (segundos)</mat-label>
-      <input matInput type="number" formControlName="interval" />
-    </mat-form-field>
+        <!-- Campos principales en filas individuales -->
+        <div *ngFor="let key of form?.controls | keyvalue">
 
-    <!-- Selector multimedia -->
-    <mat-form-field appearance="outline" class="full-width" *ngIf="form.get('media')">
-      <mat-label>Multimedia</mat-label>
-      <mat-select formControlName="media" [compareWith]="compareById">
-        <mat-option *ngFor="let m of mediaList" [value]="m">
-          {{ m.src }}
-        </mat-option>
-      </mat-select>
-    </mat-form-field>
+          <!-- Campo de subida para Media.src -->
+          <div *ngIf="entityName === 'media' && key.key === 'src'">
+            <label>Archivo multimedia</label>
+            <input type="file" (change)="uploadFile($event)" accept="image/*,video/*" />
 
-    <!-- Selector promoción -->
-    <mat-form-field appearance="outline" class="full-width" *ngIf="form.get('promotion')">
-      <mat-label>Promoción</mat-label>
-      <mat-select formControlName="promotion" [compareWith]="compareById">
-        <mat-option *ngFor="let p of promotionList" [value]="p">
-          {{ p.description }}
-        </mat-option>
-      </mat-select>
-    </mat-form-field>
-
-    <!-- Reglas de visibilidad -->
-    <div class="visibility-rules" *ngIf="visibilityRules">
-      <h3>Reglas de visibilidad</h3>
-      <button mat-mini-fab color="primary" (click)="addVisibilityRule()" type="button">
-        <mat-icon>add</mat-icon>
-      </button>
-
-      <div formArrayName="visibilityRules">
-        <ng-container *ngFor="let i of getVisibilityRulesIndexes()">
-          <div [formGroupName]="i" class="rule-group">
-            <mat-form-field appearance="outline">
-              <mat-label>Día</mat-label>
-              <mat-select formControlName="day">
-                <mat-option *ngFor="let day of daysOfWeek" [value]="day">{{ day }}</mat-option>
-              </mat-select>
-            </mat-form-field>
-
-            <button mat-icon-button color="warn" (click)="removeVisibilityRule(i)" type="button">
-              <mat-icon>delete</mat-icon>
-            </button>
-
-            <div formArrayName="timeRanges">
-              <h4>Horarios</h4>
-              <button mat-mini-fab color="accent" (click)="addTimeRange(i)" type="button">
-                <mat-icon>add</mat-icon>
-              </button>
-
-              <div *ngFor="let range of getTimeRanges(i).controls; let j = index" [formGroupName]="j" class="time-range">
-                <mat-form-field appearance="outline">
-                  <mat-label>Desde</mat-label>
-                  <input matInput type="time" formControlName="fromTime" />
-                </mat-form-field>
-                <mat-form-field appearance="outline">
-                  <mat-label>Hasta</mat-label>
-                  <input matInput type="time" formControlName="toTime" />
-                </mat-form-field>
-                <button mat-icon-button color="warn" (click)="removeTimeRange(i, j)" type="button">
-                  <mat-icon>delete</mat-icon>
-                </button>
-              </div>
+            <div *ngIf="previewUrl" style="margin-top: 12px;">
+              <img *ngIf="previewUrl.endsWith('.jpg') || previewUrl.endsWith('.png')" [src]="previewUrl" width="200" />
+              <video *ngIf="previewUrl.endsWith('.mp4') || previewUrl.endsWith('.webm')" [src]="previewUrl" width="200"
+                controls></video>
             </div>
           </div>
-          <mat-divider></mat-divider>
+
+          <!-- Campo tipo texto -->
+          <mat-form-field *ngIf="shouldRenderTextField(key.key)" appearance="outline" class="full-width"
+            style="margin-bottom: 12px;">
+            <mat-label>{{ key.key | titlecase }}</mat-label>
+            <input matInput [formControlName]="key.key" />
+          </mat-form-field>
+
+          <!-- Campo tipo select para objetos con id -->
+          <mat-form-field *ngIf="shouldRenderSelectField(key.key)" appearance="outline" class="full-width"
+            style="margin-bottom: 12px;">
+            <mat-label>{{ key.key | titlecase }}</mat-label>
+            <mat-select [formControlName]="key.key" [compareWith]="compareById">
+              <mat-option *ngFor="let option of foreignEntityLists[key.key] ?? []" [value]="option">
+                {{ getOptionLabel(option, key.key) }}
+              </mat-option>
+            </mat-select>
+          </mat-form-field>
+
+        </div>
+
+        <!-- Campos específicos para advice -->
+        <ng-container *ngIf="entityName === 'advice'">
+
+          <mat-slide-toggle *ngIf="form.get('customInterval')" formControlName="customInterval"
+            style="margin-bottom: 8px;">
+            Intervalo personalizado
+          </mat-slide-toggle>
+
+          <mat-form-field appearance="outline" class="full-width" style="margin-bottom: 16px;"
+            *ngIf="form.get('interval') && form.get('customInterval')?.value">
+            <mat-label>Intervalo (segundos)</mat-label>
+            <input matInput type="number" formControlName="interval" />
+          </mat-form-field>
+
+          <mat-form-field appearance="outline" class="full-width" style="margin-bottom: 16px;"
+            *ngIf="form.get('media')">
+            <mat-label>Multimedia</mat-label>
+            <mat-select formControlName="media" [compareWith]="compareById">
+              <mat-option *ngFor="let m of mediaList" [value]="m">
+                {{ m.src }}
+              </mat-option>
+            </mat-select>
+          </mat-form-field>
+
+          <mat-form-field appearance="outline" class="full-width" style="margin-bottom: 16px;"
+            *ngIf="form.get('promotion')">
+            <mat-label>Promoción</mat-label>
+            <mat-select formControlName="promotion" [compareWith]="compareById">
+              <mat-option *ngFor="let p of promotionList" [value]="p">
+                {{ p.description }}
+              </mat-option>
+            </mat-select>
+          </mat-form-field>
+
+          <!-- Reglas de Visibilidad -->
+          <div formArrayName="visibilityRules" style="margin-bottom: 16px;">
+            <h3 style="margin-bottom: 8px;">Reglas de Visibilidad</h3>
+            <button mat-mini-fab color="primary" type="button" (click)="addVisibilityRule()"
+              style="margin-bottom: 12px;">
+              <mat-icon>add</mat-icon>
+            </button>
+
+            <table style="width: 100%; border-collapse: collapse;">
+              <thead>
+                <tr>
+                  <th style="padding: 8px;">Día</th>
+                  <th style="padding: 8px;">Acciones</th>
+                </tr>
+              </thead>
+              <tbody>
+                <ng-container *ngFor="let rule of visibilityRules.controls; let i = index" [formGroupName]="i">
+                  <tr>
+                    <td style="padding: 8px;">
+                      <mat-form-field appearance="outline" style="width: 150px;">
+                        <mat-label>Día</mat-label>
+                        <mat-select formControlName="day">
+                          <mat-option *ngFor="let day of daysOfWeek" [value]="day">{{ day }}</mat-option>
+                        </mat-select>
+                      </mat-form-field>
+                    </td>
+                    <td>
+                      <button mat-icon-button color="warn" (click)="removeVisibilityRule(i)" type="button">
+                        <mat-icon>delete</mat-icon>
+                      </button>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td colspan="2" style="padding-left: 32px;">
+                      <div formArrayName="timeRanges">
+                        <table style="width: 100%;">
+                          <thead>
+                            <tr>
+                              <th style="padding: 4px;">Desde</th>
+                              <th style="padding: 4px;">Hasta</th>
+                              <th></th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            <tr *ngFor="let range of getTimeRanges(i).controls; let j = index" [formGroupName]="j">
+                              <td style="padding-right: 8px;">
+                                <mat-form-field appearance="outline" style="width: 100px; margin-bottom: 4px;">
+                                  <input matInput type="time" formControlName="fromTime" />
+                                </mat-form-field>
+                              </td>
+                              <td style="padding-right: 8px;">
+                                <mat-form-field appearance="outline" style="width: 100px; margin-bottom: 4px;">
+                                  <input matInput type="time" formControlName="toTime" />
+                                </mat-form-field>
+                              </td>
+                              <td>
+                                <button mat-icon-button color="warn" (click)="removeTimeRange(i, j)" type="button">
+                                  <mat-icon>delete</mat-icon>
+                                </button>
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
+                        <button mat-mini-fab color="primary" (click)="addTimeRange(i)" type="button"
+                          style="margin-top: 4px;">
+                          <mat-icon>add</mat-icon>
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                </ng-container>
+              </tbody>
+            </table>
+          </div>
+
         </ng-container>
+
+      </form>
+    </div>
+
+    <!-- Columna derecha: Vista previa -->
+    <div style="flex: 1;background: #465671a3;">
+      <div class="preview-panel">
+        <!-- Botones flotantes arriba -->
+        <div class="preview-actions">
+          <button sl-button variant="primary" size="medium" color="primary" (click)="save()"
+            [disabled]="form.invalid">Guardar</button>
+          <button sl-button variant="border" size="medium" type="button"
+            (click)="router.navigate(['/' + entityName])">Cancelar</button>
+        </div>
+
+        <!-- Vista previa sticky -->
+        <app-preview-device *ngIf="entityName === 'advice' && form?.get('media')?.value?.src" mediaType="video"
+          [mediaUrl]="form.get('media')?.value?.src">
+        </app-preview-device>
       </div>
     </div>
-
-    <!-- Botones -->
-    <div class="actions">
-      <button mat-raised-button color="primary" type="submit" [disabled]="form.invalid">
-        Guardar
-      </button>
-      <button mat-button type="button" (click)="router.navigate(['/' + entityName])">Cancelar</button>
-    </div>
-  </form>
-
-  <!-- Vista previa de video solo para Advice -->
-  <app-preview-device
-    *ngIf="entityName === 'advice' && form && form.get('media')?.value?.src"
-    mediaType="video"
-    [mediaUrl]="form.get('media')?.value?.src">
-  </app-preview-device>
+  </div>
 </mat-card>
