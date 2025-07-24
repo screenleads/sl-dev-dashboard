@@ -262,18 +262,50 @@ export class FormsComponent implements OnInit {
     this.uploading = true;
 
     this.service.init('medias');
-    this.service.createCustom('upload', formData)
-      .subscribe({
-        next: res => {
+    this.service.createCustom('upload', formData).subscribe({
+      next: res => {
+        const filename = res.filename;
+        if (!filename) {
+          this.snackBar.open('Error: no se recibió el nombre del archivo', 'Cerrar', { duration: 3000 });
+          this.uploading = false;
+          return;
+        }
+
+        // Iniciar polling
+        this.pollForCompressedUrl(filename);
+      },
+      error: err => {
+        console.error(err);
+        this.snackBar.open('Error al subir el archivo', 'Cerrar', { duration: 3000 });
+        this.uploading = false;
+      }
+    });
+  }
+  pollForCompressedUrl(filename: string, attempts: number = 0) {
+    if (attempts >= 20) {
+      this.snackBar.open('Tiempo de espera agotado para compresión', 'Cerrar', { duration: 4000 });
+      this.uploading = false;
+      return;
+    }
+
+    this.service.init('medias');
+    this.service.getCustom(`status/${filename}`).subscribe({
+      next: (res) => {
+        if (res.url) {
           this.form!.get('src')?.setValue(res.url);
           this.previewUrl = res.url;
-          this.snackBar.open('Archivo subido correctamente', 'Cerrar', { duration: 2000 });
-        },
-        error: err => {
-          console.error(err);
-          this.snackBar.open('Error al subir el archivo', 'Cerrar', { duration: 3000 });
-        },
-        complete: () => this.uploading = false
-      });
+          this.snackBar.open('Archivo comprimido listo', 'Cerrar', { duration: 2000 });
+          this.uploading = false;
+        } else {
+          // Intentar de nuevo tras esperar 5 segundos
+          setTimeout(() => this.pollForCompressedUrl(filename, attempts + 1), 5000);
+        }
+      },
+      error: err => {
+        console.error('Error consultando estado de compresión', err);
+        this.snackBar.open('Error consultando estado', 'Cerrar', { duration: 3000 });
+        this.uploading = false;
+      }
+    });
   }
 }

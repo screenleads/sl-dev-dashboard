@@ -8,8 +8,6 @@ import { MatToolbarModule } from '@angular/material/toolbar';
 import { MatCardModule } from '@angular/material/card';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
-import { PreviewDeviceComponent } from '../preview-device/preview-device.component';
-
 
 import { CrudService } from '../../core/services/crud.service';
 import { DeviceModel } from '../../core/models/device.model';
@@ -33,8 +31,7 @@ import { DeviceAdvicesDialogComponent } from '../device-advices-dialog/device-ad
     MatToolbarModule,
     MatCardModule,
     MatSnackBarModule,
-    MatDialogModule,
-    PreviewDeviceComponent
+    MatDialogModule
   ],
   templateUrl: './lists.component.html',
   styleUrl: './lists.component.scss'
@@ -47,6 +44,7 @@ export class ListsComponent {
   private route = inject(ActivatedRoute);
 
   titleList = '';
+  isMedia = false;
   items: WritableSignal<any[]> = signal([]);
   properties: string[] = [];
   displayedColumns: string[] = [];
@@ -78,6 +76,7 @@ export class ListsComponent {
     }
 
     this.titleList = config.title;
+    this.isMedia = path === '/media';
     this.properties = Object.keys(config.model);
     this.displayedColumns = [...this.properties, 'acciones'];
 
@@ -115,5 +114,10 @@ export class ListsComponent {
       data: { deviceId },
       width: '600px'
     });
+  }
+
+  isVideo(url: string | undefined | null): boolean {
+    if (!url) return false;
+    return url.endsWith('.mp4') || url.endsWith('.webm') || url.endsWith('.mov');
   }
 }
