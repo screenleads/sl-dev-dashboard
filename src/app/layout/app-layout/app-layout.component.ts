@@ -7,6 +7,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatListModule } from '@angular/material/list';
 import { MatButtonModule } from '@angular/material/button';
 import { NgIf, NgFor } from '@angular/common';
+import { AuthenticationService } from '../../core/services/authentication/authentication.service';
 
 @Component({
   selector: 'app-layout',
@@ -25,6 +26,7 @@ import { NgIf, NgFor } from '@angular/common';
   ]
 })
 export class AppLayoutComponent {
+  user: any;
   navItems = [
     { path: '/device', label: 'Dispositivos', icon: 'devices' },
     { path: '/device-types', label: 'Tipos de Dispositivo', icon: 'category' },
@@ -34,4 +36,14 @@ export class AppLayoutComponent {
     { path: '/advice', label: 'Anuncios', icon: 'lightbulb' },
     { path: '/company', label: 'Compañías', icon: 'business' }
   ];
+  constructor(private authenticationService: AuthenticationService) {
+    this.user = this.authenticationService.getUser();
+  }
+    // Aquí podrías agregar lógica adicional si es necesario
+  ngOnInit() {
+     // Aquí podrías agregar lógica adicional si es necesario
+  }
+  logout() {
+    this.authenticationService.logout();
+  }
 }

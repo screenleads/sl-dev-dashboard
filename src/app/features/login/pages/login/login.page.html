@@ -1,0 +1,38 @@
+<!-- <ion-header [translucent]="true">
+  <ion-toolbar>
+    <ion-title>loading</ion-title>
+  </ion-toolbar>
+</ion-header> -->
+
+
+<section id="login" >
+<div class="content-ver">
+          <img src="logo-hor.svg" id="logo" />
+
+    <form [formGroup]="form" (ngSubmit)="login()">
+      <sl-module-title>
+        <!-- <span slModuleTitlePre>Pre Título</span> -->
+        <!-- <h1>Identificate</h1> -->
+        <span slModuleTitlePost>Identificate con las credenciales de tu empresa</span>
+      </sl-module-title>
+
+      <sl-text-field [label]="'Usuario'">
+        <input slNativeControl type="text" formControlName="username" />
+        <sl-icon slTextFieldEnd icon="person"></sl-icon>
+      </sl-text-field>
+      <sl-text-field [label]="'Contraseña'">
+        <input slNativeControl type="password" formControlName="password" />
+        <sl-icon slTextFieldEnd icon="password"></sl-icon>
+      </sl-text-field>
+
+    <button sl-button variant="primary" size="medium" type="submit">
+      <!-- <sl-icon icon="search"></sl-icon> -->
+      Guardar
+      <sl-icon icon="save"></sl-icon>
+
+    </button>
+    </form>
+  </div>
+</section>
+
+  
