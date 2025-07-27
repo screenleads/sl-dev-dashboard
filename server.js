@@ -3,7 +3,9 @@ const path = require('path');
 
 const app = express();
 const port = process.env.PORT || 8080;
-const distFolder = path.join(__dirname, 'dist', 'sl-dev-deshboard', 'browser');
+
+// ✅ Corregido: ruta sin 'browser'
+const distFolder = path.join(__dirname, 'dist', 'sl-dev-deshboard');
 
 app.use(express.static(distFolder));
 
