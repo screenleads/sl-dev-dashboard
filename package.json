@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "scripts": {
     "ng": "ng",
-    "start": "ng serve",
+    "start": "node server.js",
     "build": "ng build",
     "watch": "ng build --watch --configuration development",
     "test": "ng test"
@@ -20,8 +20,9 @@
     "@angular/platform-browser": "^18.1.0",
     "@angular/platform-browser-dynamic": "^18.1.0",
     "@angular/router": "^18.1.0",
-    "sl-dev-components": "^0.0.3",
+    "express": "^5.1.0",
     "rxjs": "~7.8.0",
+    "sl-dev-components": "^0.0.3",
     "tslib": "^2.3.0",
     "zone.js": "~0.14.3"
   },
@@ -37,5 +38,8 @@
     "karma-jasmine": "~5.1.0",
     "karma-jasmine-html-reporter": "~2.1.0",
     "typescript": "~5.5.2"
+  },
+  "engines": {
+    "node": ">=16.0.0"
   }
 }

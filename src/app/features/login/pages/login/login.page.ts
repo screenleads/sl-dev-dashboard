@@ -12,14 +12,15 @@ import {
   SlModuleTitleComponent,
   SlTextFieldModule
 } from 'sl-dev-components';
+import { environment } from '../../../../../environments/environment';
 
 @Component({
   standalone: true,
   selector: 'app-login',
-    imports: [ 
+  imports: [
     ReactiveFormsModule,
     RouterModule,
-    CommonModule, 
+    CommonModule,
     FormsModule,
     SlButtonComponent,
     SlIconComponent,
@@ -35,22 +36,24 @@ export class LoginPage {
   private auth = inject(AuthenticationService);
   private router = inject(Router);
   private route = inject(ActivatedRoute);
+  private apiUrl = '';
   form = this.fb.group({
     username: ['jato', Validators.required],
     password: ['52866617jJ@', Validators.required]
   });
 
-  constructor(){
-
+  constructor() {
+    this.apiUrl = environment.apiUrl;
   }
 
   login() {
     const returnUrl = '/connect';
-    this.http.post<{ token: string }>('https://sl-dev-backend-pre-7ca702711a78.herokuapp.com/auth/login', this.form.value)
+    this.http.post<{ token: string }>(`${this.apiUrl}auth/login`, this.form.value)
       .subscribe({
         next: res => {
           console.log(res);
-          this.auth.loginSuccess(res);
+          if (this.auth.isCorrect(res)) this.auth.loginSuccess(res);
+          else alert('Usuario mal configurado ponte en contacto con el administrador')
         },
         error: () => alert('Credenciales inválidas')
       });

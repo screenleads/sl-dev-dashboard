@@ -1,6 +1,7 @@
 import { inject, Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
+import { environment } from '../../../environments/environment';
 
 
 
@@ -9,8 +10,7 @@ export class CrudService {
     private http = inject(HttpClient);
     private apiUrl = '';
     init(domain: string): void {
-        // this.apiUrl = 'http://localhost:3000/';
-        this.apiUrl = 'https://sl-dev-backend-7ab91220ba93.herokuapp.com/';
+        this.apiUrl = environment.apiUrl;
         if (domain) {
             this.apiUrl += domain;
         }

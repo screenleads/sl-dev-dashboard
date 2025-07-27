@@ -6,9 +6,9 @@ export class AuthenticationService {
   private readonly tokenKey = 'access_token';
   private readonly companyKey = 'company';
 
-  constructor(private router: Router) {}
+  constructor(private router: Router) { }
 
-  getUser() : any {
+  getUser(): any {
     const user = localStorage.getItem('user');
     return user ? JSON.parse(user) : null;
   }
@@ -18,6 +18,10 @@ export class AuthenticationService {
     localStorage.setItem(this.companyKey, res.user.company.id);
     localStorage.setItem('user', JSON.stringify(res.user));
     this.router.navigate(['/']);
+  }
+
+  isCorrect(res: any) {
+    return (res.token && res.user && res.user.company)
   }
 
   logout() {
