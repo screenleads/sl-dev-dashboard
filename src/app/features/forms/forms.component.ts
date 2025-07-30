@@ -125,7 +125,7 @@ export class FormsComponent implements OnInit {
       advice: 'advices',
       media: 'medias',
       'media-types': 'medias/types',
-      promotion: 'promotion',
+      promotion: 'promotions',
       device: 'devices',
       'device-types': 'devices/types',
       company: 'companies'

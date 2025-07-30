@@ -64,7 +64,7 @@ export class ListsComponent {
       '/device-types': { endpoint: 'devices/types', model: new DeviceTypeModel(), title: 'Tipos de Dispositivos' },
       '/media': { endpoint: 'medias', model: new MediaModel(), title: 'Multimedia' },
       '/media-types': { endpoint: 'medias/types', model: new MediaTypeModel(), title: 'Tipos de Multimedia' },
-      '/promotion': { endpoint: 'promotion', model: new PromotionModel(), title: 'Promociones' },
+      '/promotion': { endpoint: 'promotions', model: new PromotionModel(), title: 'Promociones' },
       '/company': { endpoint: 'companies', model: new CompanyModel(), title: 'Compañías' },
       '/advice': { endpoint: 'advices', model: new AdviceModel(), title: 'Anuncios' },
     };
