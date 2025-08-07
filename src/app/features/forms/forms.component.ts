@@ -81,7 +81,7 @@ export class FormsComponent implements OnInit {
       this.mediaService.init('medias');
       this.mediaService.getAll().subscribe(media => this.mediaList = media ?? []);
 
-      this.promoService.init('promotion');
+      this.promoService.init('promotions');
       this.promoService.getAll().subscribe({
         next: promotions => this.promotionList = promotions ?? [],
         error: () => this.promotionList = []
