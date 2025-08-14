@@ -1,88 +1,85 @@
 .top-toolbar {
     display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 0.5rem 1rem;
-    background-color: #303d51;
-    color: white;
-}
-
-.table-container {
-    margin-top: 1rem;
-}
-
-mat-icon {
-    vertical-align: middle;
-}
-
-button[mat-icon-button] {
-    margin-right: 0.5rem;
-}
-
-mat-card {
-    overflow-x: auto;
-}
-
-.advice-assignment {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    width: 100%;
-    padding: 0.5rem 0;
-}
-
-.advice-assignment .assigned {
-    color: green;
-    font-weight: bold;
-    display: flex;
-    align-items: center;
-    gap: 0.25rem;
-}
-
-.advice-assignment .unassign-button {
-    color: red;
-}
-
-.tile-footer {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 0 8px;
-    color: white;
-    background-color: rgba(0, 0, 0, 0.6);
+    gap: 8px;
 }
 
 .spacer {
-    flex: 1 1 auto;
+    flex: 1;
+}
+
+/* === Media grid (sin cambios relevantes) === */
+.grid-container {
+    padding: 12px;
 }
 
 .media-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-    gap: 16px;
-    padding: 1rem;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 12px;
 }
 
 .media-item {
     position: relative;
-    border: 1px solid #ddd;
-    border-radius: 8px;
+    background: #fff;
+    border-radius: 12px;
     overflow: hidden;
-    background: #fafafa;
-    padding: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, .06);
+}
 
-    video,
-    img {
-        width: 100%;
-        height: auto;
-        object-fit: cover;
-        display: block;
-    }
+.media-item img,
+.media-item video {
+    width: 100%;
+    height: 180px;
+    object-fit: cover;
+    display: block;
+}
 
-    .actions {
-        display: flex;
-        justify-content: flex-end;
-        margin-top: 0.5rem;
-        gap: 8px;
-    }
+.media-item .actions {
+    position: absolute;
+    right: 6px;
+    top: 6px;
+    display: flex;
+    gap: 4px;
+}
+
+/* === Tabla === */
+.table-container {
+    padding: 12px;
+}
+
+/* ✅ Estilos para celdas de color */
+.cell--color {
+    display: inline-flex;
+    align-items: center;
+    gap: .5rem;
+}
+
+.cell--color .swatch {
+    width: 1.25rem;
+    height: 1.25rem;
+    border-radius: .25rem;
+    border: 1px solid rgba(0, 0, 0, .15);
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, .6) inset;
+}
+
+.cell--color .code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+    font-size: .83rem;
+    opacity: .9;
+}
+
+/* ✅ Estilos para logo */
+.cell--logo {
+    display: flex;
+    align-items: center;
+}
+
+.cell--logo .logo-thumb {
+    width: 48px;
+    height: 48px;
+    object-fit: contain;
+    background: #1e293b;
+
+    border-radius: .5rem;
+    border: 1px solid rgba(0, 0, 0, .08);
 }

@@ -9,6 +9,8 @@ export interface Company {
   name: string;
   observations: string;
   logo: Media;
+  primaryColor: string;
+  secondaryColor: string;
   devices: Device[];
   advices: Advice[];
 }
@@ -18,11 +20,13 @@ export interface Company {
 
 export class CompanyModel implements Company {
   id?: number = undefined;
+  logo = new MediaModel(); // Usa el modelo para tener valores por defecto
   name = '';
   observations = '';
-  logo = new MediaModel(); // Usa el modelo para tener valores por defecto
   devices: Device[] = [];
   advices: Advice[] = [];
+  primaryColor: string = '';
+  secondaryColor: string = '';
 
   constructor(init?: Partial<Company>) {
     Object.assign(this, init);

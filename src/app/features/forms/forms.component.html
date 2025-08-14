@@ -11,7 +11,7 @@
         <div *ngFor="let key of form?.controls | keyvalue">
 
           <!-- Campo de subida para Media.src -->
-          <div *ngIf="entityName === 'media' && key.key === 'src'">
+          <div *ngIf="isMediaUploader(key)">
             <label>Archivo multimedia</label>
             <input type="file" (change)="uploadFile($event)" accept="image/*,video/*" />
 

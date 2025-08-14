@@ -1,5 +1,6 @@
-import { AdviceModel } from "./advice.model";
 import { CompanyModel } from "./company.model";
+import { AdviceModel } from "./advice.model";
+
 import { DeviceTypeModel } from "./device-type.model";
 import { DeviceModel } from "./device.model";
 import { MediaTypeModel } from "./media-type.model";

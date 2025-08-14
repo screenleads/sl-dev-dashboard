@@ -22,6 +22,7 @@ import {
   SlIconComponent,
   SlModuleTitleComponent
 } from 'sl-dev-components';
+import { Media, MediaModel } from '../../core/models/media.model';
 
 @Component({
   standalone: true,
@@ -107,6 +108,9 @@ export class FormsComponent implements OnInit {
           this.buildForm(data);
           if (this.entityName === 'media' && data.src) {
             this.previewUrl = data.src;
+          } else if (this.entityName === 'company' && data.logo && data.logo.src) {
+            console.log; (data.logo, data.logo.src)
+            this.previewUrl = data.logo.src;
           }
         },
         error: () => {
@@ -119,7 +123,9 @@ export class FormsComponent implements OnInit {
       this.buildForm(emptyModel);
     }
   }
-
+  isMediaUploader(key: any) {
+    return (this.entityName === 'media' && key.key === 'src') || (this.entityName === 'company' && key.key === 'logo');
+  }
   private getEndpoint(entity: string): string {
     const map: Record<string, string> = {
       advice: 'advices',
@@ -229,13 +235,13 @@ export class FormsComponent implements OnInit {
   shouldRenderTextField(key: string): boolean {
     const ctrl = this.form?.get(key);
     const val = ctrl?.value;
-    return (!val || typeof val !== 'object' || !('id' in val)) && !['customInterval', 'visibilityRules', 'src'].includes(key);
+    return (!val || typeof val !== 'object' || !('id' in val)) && !['customInterval', 'visibilityRules', 'src', 'logo'].includes(key);
   }
 
   shouldRenderSelectField(key: string): boolean {
     const ctrl = this.form?.get(key);
     const val = ctrl?.value;
-    return val && typeof val === 'object' && 'id' in val;
+    return val && typeof val === 'object' && 'id' in val && !['src', 'logo'].includes(key);
   }
 
   getOptionLabel(option: any, key: string): string {
@@ -268,7 +274,9 @@ export class FormsComponent implements OnInit {
         if (!filename) {
           this.snackBar.open('Error: no se recibió el nombre del archivo', 'Cerrar', { duration: 3000 });
           this.uploading = false;
+          this.service.init(this.getEndpoint(this.entityName));
           return;
+
         }
 
         // Iniciar polling
@@ -278,6 +286,7 @@ export class FormsComponent implements OnInit {
         console.error(err);
         this.snackBar.open('Error al subir el archivo', 'Cerrar', { duration: 3000 });
         this.uploading = false;
+        this.service.init(this.getEndpoint(this.entityName));
       }
     });
   }
@@ -292,10 +301,22 @@ export class FormsComponent implements OnInit {
     this.service.getCustom(`status/${filename}`).subscribe({
       next: (res) => {
         if (res.url) {
-          this.form!.get('src')?.setValue(res.url);
+
+          if (this.form!.get('logo')) {
+            let auxLogo = this.form!.get('logo')?.value;
+            let aux: Media = auxLogo != '' ? auxLogo : new MediaModel();
+            aux.src = res.url;
+            this.form!.get('logo')?.setValue(aux);
+
+          } else {
+            this.form!.get('src')?.setValue(res.url);
+          }
+
           this.previewUrl = res.url;
+          console.log(this.form!.get('logo'));
           this.snackBar.open('Archivo comprimido listo', 'Cerrar', { duration: 2000 });
           this.uploading = false;
+          this.service.init(this.getEndpoint(this.entityName));
         } else {
           // Intentar de nuevo tras esperar 5 segundos
           setTimeout(() => this.pollForCompressedUrl(filename, attempts + 1), 5000);
@@ -305,6 +326,7 @@ export class FormsComponent implements OnInit {
         console.error('Error consultando estado de compresión', err);
         this.snackBar.open('Error consultando estado', 'Cerrar', { duration: 3000 });
         this.uploading = false;
+        this.service.init(this.getEndpoint(this.entityName));
       }
     });
   }

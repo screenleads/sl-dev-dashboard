@@ -15,9 +15,12 @@ import { DeviceTypeModel } from '../../core/models/device-type.model';
 import { MediaModel } from '../../core/models/media.model';
 import { MediaTypeModel } from '../../core/models/media-type.model';
 import { PromotionModel } from '../../core/models/promotion.model';
-import { CompanyModel } from '../../core/models/company.model';
+
 import { AdviceModel } from '../../core/models/advice.model';
 import { DeviceAdvicesDialogComponent } from '../device-advices-dialog/device-advices-dialog.component';
+
+import { MatTooltipModule } from '@angular/material/tooltip';
+import { CompanyModel } from '../../core/models/company.model';
 
 @Component({
   standalone: true,
@@ -31,7 +34,8 @@ import { DeviceAdvicesDialogComponent } from '../device-advices-dialog/device-ad
     MatToolbarModule,
     MatCardModule,
     MatSnackBarModule,
-    MatDialogModule
+    MatDialogModule,
+    MatTooltipModule
   ],
   templateUrl: './lists.component.html',
   styleUrl: './lists.component.scss'
@@ -48,6 +52,7 @@ export class ListsComponent {
   items: WritableSignal<any[]> = signal([]);
   properties: string[] = [];
   displayedColumns: string[] = [];
+  excludedColumns: string[] = ['id', 'devices', 'advices'];
 
   ngOnInit(): void {
     this.route.paramMap.subscribe(params => {
@@ -57,7 +62,13 @@ export class ListsComponent {
       }
     });
   }
-
+  normalizeColor(value: any): string {
+    if (!value) return '';
+    const v = String(value).trim();
+    if (/^(#([0-9a-f]{3}|[0-9a-f]{6})|rgb(a)?\(|hsl(a)?\(|var\(--)/i.test(v)) return v;
+    if (/^[0-9a-f]{3}([0-9a-f]{3})?$/i.test(v)) return `#${v}`;
+    return v; // permite nombres CSS como 'red'
+  }
   configureForPath(path: string) {
     const configMap: Record<string, { endpoint: string, model: any, title: string }> = {
       '/device': { endpoint: 'devices', model: new DeviceModel(), title: 'Dispositivos' },
@@ -78,6 +89,7 @@ export class ListsComponent {
     this.titleList = config.title;
     this.isMedia = path === '/media';
     this.properties = Object.keys(config.model);
+    this.properties = this.properties.filter(arr => !this.excludedColumns.includes(arr));
     this.displayedColumns = [...this.properties, 'acciones'];
 
     this.service.init(config.endpoint);
@@ -85,6 +97,8 @@ export class ListsComponent {
       this.items.set(data);
     });
   }
+
+
 
   isObject(obj: any) {
     return typeof obj === 'object' && obj !== null;
