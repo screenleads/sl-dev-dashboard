@@ -3,37 +3,65 @@
 
     <!-- Columna izquierda: Formulario -->
     <div style="flex: 2;" id="form-container">
-      <h2 style="margin-bottom: 16px;">{{ isEditMode ? 'Editar' : 'Nuevo' }} {{ entityName | titlecase }}</h2>
+      <h2 style="margin-bottom: 16px;">
+        {{ isEditMode ? 'Editar' : 'Nuevo' }} {{ entityPath | titlecase }}
+      </h2>
 
       <form [formGroup]="form" (ngSubmit)="save()" class="form">
 
         <!-- Campos principales en filas individuales -->
         <div *ngFor="let key of form?.controls | keyvalue">
 
-          <!-- Campo de subida para Media.src -->
+          <!-- Campo de subida para Media.src o Company.logo -->
           <div *ngIf="isMediaUploader(key)">
             <label>Archivo multimedia</label>
             <input type="file" (change)="uploadFile($event)" accept="image/*,video/*" />
 
             <div *ngIf="previewUrl" style="margin-top: 12px;">
-              <img *ngIf="previewUrl.endsWith('.jpg') || previewUrl.endsWith('.png')" [src]="previewUrl" width="200" />
-              <video *ngIf="previewUrl.endsWith('.mp4') || previewUrl.endsWith('.webm')" [src]="previewUrl" width="200"
-                controls></video>
+              <img
+                *ngIf="previewUrl.endsWith('.jpg') || previewUrl.endsWith('.jpeg') || previewUrl.endsWith('.png') || previewUrl.endsWith('.webp')"
+                [src]="previewUrl" width="200" />
+              <video *ngIf="previewUrl.endsWith('.mp4') || previewUrl.endsWith('.webm') || previewUrl.endsWith('.mov')"
+                [src]="previewUrl" width="200" controls></video>
             </div>
           </div>
 
-          <!-- Campo tipo texto -->
-          <mat-form-field *ngIf="shouldRenderTextField(key.key)" appearance="outline" class="full-width"
-            style="margin-bottom: 12px;">
+          <!-- Campo de color para primaryColor / secondaryColor -->
+          <div *ngIf="isColorField(key.key)" class="full-width" style="margin-bottom: 12px;">
+            <label class="mat-body-1" style="display:block; margin-bottom: 6px;">
+              {{ key.key | titlecase }}
+            </label>
+
+            <div style="display:flex; align-items:center; gap: 8px;">
+              <!-- Input nativo de color -->
+              <input type="color" [value]="form.get(key.key)?.value || '#000000'"
+                (input)="onColorInputChange(key.key, $event)"
+                style="width: 56px; height: 40px; border: none; background: transparent; padding: 0; cursor: pointer;" />
+
+              <!-- Campo de texto para ver/editar el HEX -->
+              <mat-form-field appearance="outline" style="flex:1;">
+                <mat-label>{{ key.key | titlecase }} (HEX)</mat-label>
+                <input matInput [value]="form.get(key.key)?.value || ''" (input)="onColorTextChange(key.key, $event)"
+                  placeholder="#RRGGBB" autocomplete="on" [attr.name]="key.key" autocapitalize="off"
+                  spellcheck="false" />
+              </mat-form-field>
+            </div>
+          </div>
+
+          <!-- Campo tipo texto (excluye los de color y especiales) -->
+          <mat-form-field *ngIf="shouldRenderTextField(key.key) && !isColorField(key.key)" appearance="outline"
+            class="full-width" style="margin-bottom: 12px;">
             <mat-label>{{ key.key | titlecase }}</mat-label>
-            <input matInput [formControlName]="key.key" />
+            <input matInput [formControlName]="key.key" autocomplete="on" [attr.name]="key.key" autocapitalize="off"
+              [attr.inputmode]="(key.key === 'email') ? 'email' : (key.key === 'interval' ? 'numeric' : null)"
+              [type]="(key.key === 'email') ? 'email' : (key.key === 'interval' ? 'number' : 'text')" />
           </mat-form-field>
 
-          <!-- Campo tipo select para objetos con id -->
+          <!-- Campo tipo select para relaciones (foreign) -->
           <mat-form-field *ngIf="shouldRenderSelectField(key.key)" appearance="outline" class="full-width"
             style="margin-bottom: 12px;">
             <mat-label>{{ key.key | titlecase }}</mat-label>
-            <mat-select [formControlName]="key.key" [compareWith]="compareById">
+            <mat-select [formControlName]="key.key" [compareWith]="compareById" [attr.name]="key.key">
               <mat-option *ngFor="let option of foreignEntityLists[key.key] ?? []" [value]="option">
                 {{ getOptionLabel(option, key.key) }}
               </mat-option>
@@ -42,8 +70,8 @@
 
         </div>
 
-        <!-- Campos específicos para advice -->
-        <ng-container *ngIf="entityName === 'advice'">
+        <!-- Campos específicos para advice (solo toggle, intervalo y reglas) -->
+        <ng-container *ngIf="entityPath === 'advice'">
 
           <mat-slide-toggle *ngIf="form.get('customInterval')" formControlName="customInterval"
             style="margin-bottom: 8px;">
@@ -53,27 +81,8 @@
           <mat-form-field appearance="outline" class="full-width" style="margin-bottom: 16px;"
             *ngIf="form.get('interval') && form.get('customInterval')?.value">
             <mat-label>Intervalo (segundos)</mat-label>
-            <input matInput type="number" formControlName="interval" />
-          </mat-form-field>
-
-          <mat-form-field appearance="outline" class="full-width" style="margin-bottom: 16px;"
-            *ngIf="form.get('media')">
-            <mat-label>Multimedia</mat-label>
-            <mat-select formControlName="media" [compareWith]="compareById">
-              <mat-option *ngFor="let m of mediaList" [value]="m">
-                {{ m.src }}
-              </mat-option>
-            </mat-select>
-          </mat-form-field>
-
-          <mat-form-field appearance="outline" class="full-width" style="margin-bottom: 16px;"
-            *ngIf="form.get('promotion')">
-            <mat-label>Promoción</mat-label>
-            <mat-select formControlName="promotion" [compareWith]="compareById">
-              <mat-option *ngFor="let p of promotionList" [value]="p">
-                {{ p.description }}
-              </mat-option>
-            </mat-select>
+            <input matInput type="number" formControlName="interval" inputmode="numeric" autocomplete="on"
+              name="interval" />
           </mat-form-field>
 
           <!-- Reglas de Visibilidad -->
@@ -97,7 +106,7 @@
                     <td style="padding: 8px;">
                       <mat-form-field appearance="outline" style="width: 150px;">
                         <mat-label>Día</mat-label>
-                        <mat-select formControlName="day">
+                        <mat-select formControlName="day" [attr.name]="'day-' + i">
                           <mat-option *ngFor="let day of daysOfWeek" [value]="day">{{ day }}</mat-option>
                         </mat-select>
                       </mat-form-field>
@@ -122,13 +131,15 @@
                           <tbody>
                             <tr *ngFor="let range of getTimeRanges(i).controls; let j = index" [formGroupName]="j">
                               <td style="padding-right: 8px;">
-                                <mat-form-field appearance="outline" style="width: 100px; margin-bottom: 4px;">
-                                  <input matInput type="time" formControlName="fromTime" />
+                                <mat-form-field appearance="outline" style="width: 120px; margin-bottom: 4px;">
+                                  <input matInput type="time" formControlName="fromTime" autocomplete="on"
+                                    [attr.name]="'fromTime-' + i + '-' + j" />
                                 </mat-form-field>
                               </td>
                               <td style="padding-right: 8px;">
-                                <mat-form-field appearance="outline" style="width: 100px; margin-bottom: 4px;">
-                                  <input matInput type="time" formControlName="toTime" />
+                                <mat-form-field appearance="outline" style="width: 120px; margin-bottom: 4px;">
+                                  <input matInput type="time" formControlName="toTime" autocomplete="on"
+                                    [attr.name]="'toTime-' + i + '-' + j" />
                                 </mat-form-field>
                               </td>
                               <td>
@@ -150,9 +161,7 @@
               </tbody>
             </table>
           </div>
-
         </ng-container>
-
       </form>
     </div>
 
@@ -161,17 +170,20 @@
       <div class="preview-panel">
         <!-- Botones flotantes arriba -->
         <div class="preview-actions">
-          <button sl-button variant="primary" size="medium" color="primary" (click)="save()"
-            [disabled]="form.invalid">Guardar</button>
-          <button sl-button variant="border" size="medium" type="button"
-            (click)="router.navigate(['/' + entityName])">Cancelar</button>
+          <button sl-button variant="primary" size="medium" color="primary" (click)="save()" [disabled]="form.invalid">
+            Guardar
+          </button>
+          <button sl-button variant="border" size="medium" type="button" (click)="router.navigate(['/' + entityPath])">
+            Cancelar
+          </button>
         </div>
 
         <!-- Vista previa sticky -->
-        <app-preview-device *ngIf="entityName === 'advice' && form?.get('media')?.value?.src" mediaType="video"
+        <app-preview-device *ngIf="entityPath === 'advice' && form?.get('media')?.value?.src" mediaType="video"
           [mediaUrl]="form.get('media')?.value?.src">
         </app-preview-device>
       </div>
     </div>
+
   </div>
 </mat-card>

@@ -21,8 +21,9 @@
         <sl-icon slTextFieldEnd icon="person"></sl-icon>
       </sl-text-field>
       <sl-text-field [label]="'Contraseña'">
-        <input slNativeControl type="password" formControlName="password" />
-        <sl-icon slTextFieldEnd icon="password"></sl-icon>
+        <input slNativeControl [type]="showPassword ? 'text' : 'password'" formControlName="password" />
+        <sl-icon slTextFieldEnd icon="{{showPassword ? 'visibility' : 'visibility_off'}}" class="clickable"
+          (click)="showPassword = !showPassword"></sl-icon>
       </sl-text-field>
 
       <button sl-button variant="primary" size="medium" type="submit">

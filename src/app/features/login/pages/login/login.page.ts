@@ -37,6 +37,7 @@ export class LoginPage {
   private router = inject(Router);
   private route = inject(ActivatedRoute);
   private apiUrl = '';
+  public showPassword = false;
   form = this.fb.group({
     username: ['jato', Validators.required],
     password: ['52866617jJ@', Validators.required]

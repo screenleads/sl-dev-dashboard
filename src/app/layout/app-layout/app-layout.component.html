@@ -6,16 +6,14 @@
     <mat-divider></mat-divider>
 
     <div class="user-profile">
-      <!-- <img src="assets/avatar.png" alt="Avatar" class="avatar" /> -->
-       <div class="avatarCircle">
+      <div class="avatarCircle">
         <div id="letters">
-                <div>{{ user?.name?.charAt(0).toUpperCase() }}</div>
-                <div>{{ user?.lastName?.charAt(0).toUpperCase() }}</div>
+          <div>{{ user?.name?.charAt(0).toUpperCase() }}</div>
+          <div>{{ user?.lastName?.charAt(0).toUpperCase() }}</div>
         </div>
-       </div>
-      <span class="username" [innerHTML]="user.username"></span>
+      </div>
+      <span class="username" [innerHTML]="user?.username"></span>
     </div>
-
 
     <a *ngFor="let item of navItems" [routerLink]="item.path" routerLinkActive="active" class="option">
       <mat-icon matListIcon>{{ item.icon }}</mat-icon>
@@ -26,7 +24,9 @@
   <mat-sidenav-content class="content">
     <mat-toolbar color="primary" class="top-toolbar">
       <span>Panel de Administración</span>
-       <div class="option" (click)="logout()"><mat-icon matListIcon>logout</mat-icon></div>
+      <div class="option" (click)="logout()">
+        <mat-icon matListIcon>logout</mat-icon>
+      </div>
     </mat-toolbar>
 
     <div class="page-content">
