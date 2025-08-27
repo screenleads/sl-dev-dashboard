@@ -15,7 +15,7 @@ import { HttpClientModule, HttpClient } from '@angular/common/http';
 import { MatTableModule } from '@angular/material/table';
 
 import { CrudService } from '../../core/services/crud.service';
-import { PreviewDeviceComponent } from '../preview-device/preview-device.component';
+import { PreviewDeviceComponent } from "../preview-device/preview-device.component";
 import { DefaultModelFactory } from '../../core/models/default-model.factory';
 import {
   SlButtonComponent,
@@ -23,8 +23,6 @@ import {
   SlModuleTitleComponent
 } from 'sl-dev-components';
 import { Media, MediaModel } from '../../core/models/media.model';
-
-// Metadatos
 import { MetadataService, EntityInfo } from '../../core/services/meta-data.service';
 
 @Component({
@@ -67,91 +65,112 @@ export class FormsComponent implements OnInit {
   form: FormGroup | null = null;
   isEditMode = false;
 
-  // Para el bloque específico de Advice (rellenadas desde foreignEntityLists)
   mediaList: any[] = [];
   promotionList: any[] = [];
-
   foreignEntityLists: Record<string, any[]> = {};
+
   daysOfWeek = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY', 'SUNDAY'];
 
-  // Campos que no deben mostrarse/editarse de forma genérica
-  excludedFields: string[] = ['id', 'devices', 'advices', 'users', 'roles', 'timeRanges', 'companyId'];
+  // Campos que NO modelamos en el form
+  excludedFields: string[] = ['id', 'devices', 'advices', 'users', 'roles', 'timeRanges'];
 
-  public entityPath = '';      // 'company' | 'device-types' | 'user' | ...
-  public entityClassName = ''; // 'Company' | 'DeviceType' | 'User' | ...
+  public entityPath = '';         // p.ej. 'device-types'
+  public entityClassName = '';    // p.ej. 'DeviceType'
   uploading = false;
   previewUrl: string | null = null;
 
-  // Edición de usuario: recordamos companyId del DTO para preseleccionar la empresa en el select
-  private pendingCompanyId: number | null = null;
-
   private colorFields = ['primaryColor', 'secondaryColor'];
+
+  // ===================== MAPEOS CANÓNICOS ======================
+  /** Mapa canónico: path del router => endpoint REST */
+  private readonly PATH_TO_ENDPOINT: Record<string, string> = {
+    'device-types' : 'devices/types',
+    'media-types'  : 'medias/types',
+    'device'       : 'devices',
+    'media'        : 'medias',
+    'promotion'    : 'promotions',
+    'company'      : 'companies',
+    'advice'       : 'advices',
+    'user'         : 'users',
+    'role'         : 'roles',
+    'app-version'  : 'app-versions'
+  };
+
+  /** Mapa canónico: Nombre de Entidad (PascalCase) => endpoint REST (para foreign lists) */
+  private readonly ENTITY_TO_ENDPOINT: Record<string, string> = {
+    DeviceType : 'devices/types',
+    MediaType  : 'medias/types',
+    Device     : 'devices',
+    Media      : 'medias',
+    Promotion  : 'promotions',
+    Company    : 'companies',
+    Advice     : 'advices',
+    User       : 'users',
+    Role       : 'roles',
+    AppVersion : 'app-versions'
+  };
+  // ============================================================
 
   async ngOnInit(): Promise<void> {
     const id = this.route.snapshot.paramMap.get('id');
-    const url = this.router.url; // /company/new | /device-types/edit/3 | /user/edit/5
-    const pathParts = url.split('/').filter(Boolean);
-    this.entityPath = pathParts[0];
+    const pathParts = this.router.url.split('/').filter(Boolean); // e.g. ['device-types','edit','1']
+    this.entityPath = pathParts[0] || '';
     this.entityClassName = this.pathToEntity(this.entityPath);
 
+    // 1) Carga metadatos
     const withCount = false;
     this.metadata.getEntities(withCount).subscribe({
       next: (entities) => {
         const allEntityNames = new Set(entities.map(e => e.entityName));
         const currentMeta = entities.find(e => e.entityName === this.entityClassName);
 
-        // Si no hay metadatos, caemos al comportamiento previo
-        if (!currentMeta) {
-          this.initEndpointAndLoad(id, this.getEndpointFromPath(this.entityPath));
-          return;
+        // Carga listas foráneas según metadatos
+        if (currentMeta?.attributes) {
+          const foreignAttrs = Object.entries(currentMeta.attributes)
+            .filter(([_, type]) => typeof type === 'string' && allEntityNames.has(type as string))
+            .map(([attr, type]) => ({ attr, targetEntity: type as string }));
+
+          foreignAttrs.forEach(({ attr, targetEntity }) => {
+            const endpoint = this.getEndpointForEntity(targetEntity);
+            this.foreignService.init(endpoint);
+            this.foreignService.getAll().subscribe({
+              next: data => {
+                this.foreignEntityLists[attr] = data ?? [];
+
+                // Rehidrata control si contenía id primitivo
+                if (this.form?.get(attr)) {
+                  const ctrl = this.form.get(attr)!;
+                  const v = ctrl.value;
+                  const idVal = (typeof v === 'number' || typeof v === 'string') ? v : v?.id;
+                  if (idVal != null) {
+                    const found = (this.foreignEntityLists[attr] ?? []).find((o: any) => o?.id == idVal);
+                    if (found) ctrl.setValue(found, { emitEvent: false });
+                  }
+                }
+
+                // Tu lógica específica para advice
+                if (this.entityPath === 'advice') {
+                  if (attr === 'media') this.mediaList = this.foreignEntityLists[attr];
+                  if (attr === 'promotion') this.promotionList = this.foreignEntityLists[attr];
+                }
+              },
+              error: () => this.foreignEntityLists[attr] = []
+            });
+          });
         }
 
-        // Descubre relaciones: atributos cuyo tipo es otra entidad conocida
-        const foreignAttrs = Object.entries(currentMeta.attributes || {})
-          .filter(([_, type]) => typeof type === 'string' && allEntityNames.has(type as string))
-          .map(([attr, type]) => ({ attr, targetEntity: type as string }));
-
-        // Carga listas de relaciones
-        foreignAttrs.forEach(({ attr, targetEntity }) => {
-          const endpoint = this.getEndpointForEntity(targetEntity);
-          this.foreignService.init(endpoint);
-          this.foreignService.getAll().subscribe({
-            next: data => {
-              this.foreignEntityLists[attr] = data ?? [];
-
-              // Advice: listas específicas
-              if (this.entityPath === 'advice') {
-                if (attr === 'media') this.mediaList = this.foreignEntityLists[attr];
-                if (attr === 'promotion') this.promotionList = this.foreignEntityLists[attr];
-              }
-
-              // User: si estamos editando y tenemos companyId, preselecciona la empresa
-              if (this.entityPath === 'user' && attr === 'company' && this.pendingCompanyId && this.form?.get('company')) {
-                const selected = (this.foreignEntityLists['company'] || []).find((c: any) => c.id === this.pendingCompanyId);
-                if (selected) {
-                  this.form.get('company')!.setValue(selected);
-                }
-              }
-            },
-            error: () => {
-              this.foreignEntityLists[attr] = [];
-            }
-          });
-        });
-
-        // Inicializa endpoint y carga datos (o modelo vacío)
+        // 2) Inicializa endpoint principal y carga
         const endpoint = this.getEndpointFromPath(this.entityPath);
         this.initEndpointAndLoad(id, endpoint, currentMeta);
       },
       error: () => {
-        // Sin metadatos, intenta como antes
         const endpoint = this.getEndpointFromPath(this.entityPath);
         this.initEndpointAndLoad(id, endpoint);
       }
     });
   }
 
-  /** Inicializa CRUD y construye form (modo edición o creación) */
+  /** Inicializa CRUD al endpoint y construye el form (edit/create) */
   private initEndpointAndLoad(id: string | null, endpoint: string, meta?: EntityInfo) {
     this.service.init(endpoint);
 
@@ -159,21 +178,13 @@ export class FormsComponent implements OnInit {
       this.isEditMode = true;
       this.service.getById(+id).subscribe({
         next: (data) => {
-          // Si es usuario, guarda el companyId que llega en el DTO
-          if (this.entityPath === 'user') {
-            this.pendingCompanyId = data?.companyId ?? null;
-            // Fuerza existencia del control 'company' para mostrar el select
-            if (!('company' in data)) {
-              data.company = null;
-            }
-          }
-
           this.buildForm(data);
-
           if (this.entityPath === 'media' && data?.src) {
             this.previewUrl = data.src;
           } else if (this.entityPath === 'company' && data?.logo?.src) {
             this.previewUrl = data.logo.src;
+          } else if (this.entityPath === 'user' && data?.profileImage?.src) {
+            this.previewUrl = data.profileImage.src;
           }
         },
         error: () => {
@@ -182,95 +193,80 @@ export class FormsComponent implements OnInit {
         }
       });
     } else {
-      // Modelo vacío desde metadatos o factory
       const emptyModel = meta ? this.buildEmptyModelFromMeta(meta) : DefaultModelFactory.create(this.entityPath);
       this.buildForm(emptyModel);
     }
   }
 
-  /** Construye un modelo vacío a partir de metadatos */
+  /** Modelo vacío según metadatos */
   private buildEmptyModelFromMeta(meta: EntityInfo): any {
     const model: any = {};
-    const attrs = meta.attributes || {};
-
-    for (const [k, t] of Object.entries(attrs)) {
+    for (const [k, t] of Object.entries(meta.attributes || {})) {
       if (this.excludedFields.includes(k)) continue;
 
-      // Relaciones: deja en null (aparecerá select)
       if (typeof t === 'string' && this.isKnownEntityType(t)) {
-        model[k] = null;
+        model[k] = null; // relación
         continue;
       }
-
-      // Colecciones
       if (t === 'List' || t === 'Set') {
         model[k] = [];
         continue;
       }
-
-      // Escalares
       switch (t) {
-        case 'Boolean':
-        case 'boolean':
-          model[k] = false;
-          break;
-        case 'Integer':
-        case 'Long':
-        case 'Double':
-        case 'Float':
-        case 'Number':
-          model[k] = 0;
-          break;
-        case 'String':
-        default:
+        case 'Boolean': case 'boolean': model[k] = false; break;
+        case 'Integer': case 'Long': case 'Double': case 'Float': case 'Number': model[k] = 0; break;
+        case 'String': default:
           model[k] = this.isColorField(k) ? '#000000' : '';
       }
     }
-
-    // Si es usuario, asegúrate de tener 'company' para que renderice el select
-    if (this.entityPath === 'user' && !('company' in model)) {
-      model.company = null;
-    }
-
     return model;
   }
 
   private isKnownEntityType(t: string): boolean {
-    // Heurística: entidades con PascalCase
     return /^[A-Z][A-Za-z0-9]*$/.test(t);
   }
 
-  isMediaUploader(key: any) {
-    return (this.entityPath === 'media' && key.key === 'src') || (this.entityPath === 'company' && key.key === 'logo');
-  }
-
-  /** Endpoint principal desde path (con excepciones para *-types) */
+  // ===================== RESOLUCIÓN DE ENDPOINTS ======================
+  /** Endpoint principal desde el path del router (usa mapeo canónico) */
   private getEndpointFromPath(path: string): string {
-    const special: Record<string, string> = {
-      'device-types': 'devices/types',
-      'media-types': 'medias/types'
-    };
-    if (special[path]) return special[path];
+    if (this.PATH_TO_ENDPOINT[path]) return this.PATH_TO_ENDPOINT[path];
     return this.ensurePlural(path);
   }
 
-  /** Endpoint desde nombre de entidad (PascalCase) – para foreign lists */
+  /** Endpoint para ENTIDAD (PascalCase) para foreign lists (usa mapeo canónico) */
   private getEndpointForEntity(entityName: string): string {
-    const special: Record<string, string> = {
-      DeviceType: 'devices/types',
-      MediaType: 'medias/types'
-    };
-    if (special[entityName]) return special[entityName];
+    if (this.ENTITY_TO_ENDPOINT[entityName]) return this.ENTITY_TO_ENDPOINT[entityName];
     const kebab = this.toKebabCase(entityName);
     return this.ensurePlural(kebab);
   }
+  // ====================================================================
+
+  // --------- Form ---------
+
+  isMediaUploader(key: any) {
+    // Media.src (entity media), Company.logo y User.profileImage
+    return (this.entityPath === 'media' && key.key === 'src')
+        || (this.entityPath === 'company' && key.key === 'logo')
+        || (this.entityPath === 'user' && key.key === 'profileImage');
+  }
+
+  // Sanea *_Id → relación base (companyId → company)
+  private sanitizeModelWithIdRelations(model: any): any {
+    if (!model || typeof model !== 'object') return model;
+    const clone: any = { ...model };
+    for (const k of Object.keys(model)) {
+      if (/Id$/.test(k)) {
+        const base = k.slice(0, -2);
+        if (!(base in clone)) {
+          clone[base] = model[k];
+        }
+        delete clone[k];
+      }
+    }
+    return clone;
+  }
 
   buildForm(model: any) {
-    // Asegura control 'company' en usuario, aunque el modelo venga sin él
-    if (this.entityPath === 'user' && !('company' in model)) {
-      model.company = null;
-    }
-
     const toTimeString = (arr: [number, number] | undefined): string => {
       if (!arr || arr.length !== 2) return '';
       const [h, m] = arr;
@@ -279,7 +275,10 @@ export class FormsComponent implements OnInit {
     };
 
     const group: Record<string, any> = {};
-    console.log("FIELDS", Object.keys(model));
+
+    // normaliza *_Id
+    model = this.sanitizeModelWithIdRelations(model);
+
     for (const key of Object.keys(model).filter(arr => !this.excludedFields.includes(arr))) {
       if (key === 'id') continue;
 
@@ -299,9 +298,24 @@ export class FormsComponent implements OnInit {
             })
           )
         );
-      } else if (typeof model[key] === 'object' && model[key] !== null && 'id' in model[key]) {
+        continue;
+      }
+
+      // Relaciones: si hay lista foránea y el valor es id, mapear a objeto
+      if (this.foreignEntityLists[key] && (typeof model[key] === 'number' || typeof model[key] === 'string')) {
+        const found = (this.foreignEntityLists[key] ?? []).find((o: any) => o?.id == model[key]);
+        group[key] = [found ?? model[key] ?? null];
+        continue;
+      }
+
+      // Si llega objeto con id
+      if (typeof model[key] === 'object' && model[key] !== null && 'id' in model[key]) {
         group[key] = [model[key]];
-      } else if (typeof model[key] === 'boolean') {
+        continue;
+      }
+
+      // Primitivos
+      if (typeof model[key] === 'boolean') {
         group[key] = [model[key] ?? false];
       } else if (typeof model[key] === 'number') {
         group[key] = [model[key] ?? 0];
@@ -350,17 +364,10 @@ export class FormsComponent implements OnInit {
       }
     });
 
-    // Copia del valor del form
-    let payload: any = { ...this.form.value };
+    const formValue = this.form.value;
 
-    // User: mapear company -> companyId
-    if (this.entityPath === 'user') {
-      payload.companyId = payload.company?.id ?? null;
-      delete payload.company;
-
-      // Si más adelante añades selección de roles (multi-select), mapéalo aquí:
-      // payload.roles = (payload.roles || []).map((r: any) => typeof r === 'string' ? r : r.role);
-    }
+    // Payload para backend
+    const payload: any = this.buildPayloadForBackend(this.entityPath, formValue);
 
     const req = this.isEditMode
       ? this.service.update({ id: +this.route.snapshot.paramMap.get('id')!, ...payload })
@@ -373,24 +380,21 @@ export class FormsComponent implements OnInit {
   }
 
   // ---------- Render helpers ----------
-  compareById = (a: any, b: any) => a?.id === b?.id;
+  // Tolerante: objeto o id
+  compareById = (a: any, b: any) => (a?.id ?? a) === (b?.id ?? b);
 
   shouldRenderTextField(key: string): boolean {
-    const isForeign = !!this.foreignEntityLists[key]; // ahora decide por metadatos
+    // Nunca pintes *_Id
+    if (/Id$/.test(key)) return false;
+    const isForeign = !!this.foreignEntityLists[key];
     if (isForeign) return false;
     if (this.isColorField(key)) return false;
-    return !['customInterval', 'visibilityRules', 'src', 'logo'].includes(key);
+    return !['customInterval', 'visibilityRules', 'src', 'logo', 'profileImage'].includes(key);
   }
 
   shouldRenderSelectField(key: string): boolean {
-    if (['src', 'logo'].includes(key)) return false;
-    // Muestra select si el campo es relación según metadatos (aunque el valor sea null)
-    if (this.foreignEntityLists[key]) return true;
-
-    // Fallback: si el valor tiene forma de entidad (editar existente)
-    const ctrl = this.form?.get(key);
-    const val = ctrl?.value;
-    return !!(val && typeof val === 'object' && 'id' in val);
+    if (['src', 'logo', 'profileImage'].includes(key)) return false;
+    return !!this.foreignEntityLists[key];
   }
 
   getOptionLabel(option: any, key: string): string {
@@ -407,7 +411,7 @@ export class FormsComponent implements OnInit {
     return labelMap[key] || option.name || option.description || option.uuid || ('ID ' + option.id);
   }
 
-  // ---------- Upload media/logo ----------
+  // ---------- Upload media/logo/profileImage ----------
   uploadFile(event: Event) {
     const file = (event.target as HTMLInputElement).files?.[0];
     if (!file || !this.form) return;
@@ -417,7 +421,7 @@ export class FormsComponent implements OnInit {
 
     this.uploading = true;
 
-    // Subimos siempre contra 'medias'
+    // Subimos contra 'medias' SIEMPRE
     this.service.init('medias');
     this.service.createCustom('upload', formData).subscribe({
       next: res => {
@@ -425,6 +429,7 @@ export class FormsComponent implements OnInit {
         if (!filename) {
           this.snackBar.open('Error: no se recibió el nombre del archivo', 'Cerrar', { duration: 3000 });
           this.uploading = false;
+          // Volver al endpoint REAL del recurso principal
           this.service.init(this.getEndpointFromPath(this.entityPath));
           return;
         }
@@ -454,6 +459,11 @@ export class FormsComponent implements OnInit {
             const aux: Media = auxLogo ? auxLogo : new MediaModel();
             aux.src = res.url;
             this.form!.get('logo')?.setValue(aux);
+          } else if (this.form!.get('profileImage')) {
+            const current = this.form!.get('profileImage')?.value;
+            const aux: Media = current ? current : new MediaModel();
+            aux.src = res.url;
+            this.form!.get('profileImage')?.setValue(aux);
           } else {
             this.form!.get('src')?.setValue(res.url);
           }
@@ -461,6 +471,7 @@ export class FormsComponent implements OnInit {
           this.previewUrl = res.url;
           this.snackBar.open('Archivo comprimido listo', 'Cerrar', { duration: 2000 });
           this.uploading = false;
+          // Volver al endpoint REAL del recurso principal
           this.service.init(this.getEndpointFromPath(this.entityPath));
         } else {
           setTimeout(() => this.pollForCompressedUrl(filename, attempts + 1), 5000);
@@ -474,21 +485,18 @@ export class FormsComponent implements OnInit {
     });
   }
 
-  // ---------- Color helpers ----------
+  // ----------------------- Helpers de Color -----------------------
   isColorField(field: string): boolean {
     return this.colorFields.includes(field);
   }
-
   onColorInputChange(field: string, event: Event) {
     const value = (event.target as HTMLInputElement).value;
     this.form?.get(field)?.setValue(this.normalizeHexColor(value));
   }
-
   onColorTextChange(field: string, event: Event) {
     const raw = (event.target as HTMLInputElement).value;
     this.form?.get(field)?.setValue(this.normalizeHexColor(raw, false));
   }
-
   private normalizeHexColor(value: string | null | undefined, forceFull: boolean = true): string {
     if (!value) return forceFull ? '#000000' : '';
     let v = value.trim();
@@ -502,9 +510,11 @@ export class FormsComponent implements OnInit {
     return '#000000';
   }
 
-  // ---------- String helpers ----------
+  // ----------------------- Helpers de string/rutas -----------------------
   private toKebabCase(name: string): string {
-    return name.replace(/([a-z0-9])([A-Z])/g, '$1-$2').replace(/[\s_]+/g, '-').toLowerCase();
+    return name.replace(/([a-z0-9])([A-Z])/g, '$1-$2')
+               .replace(/[\s_]+/g, '-')
+               .toLowerCase();
   }
   private ensurePlural(path: string): string {
     if (path.endsWith('s')) return path;
@@ -515,47 +525,28 @@ export class FormsComponent implements OnInit {
     return path.split('-').filter(Boolean).map(w => w.charAt(0).toUpperCase() + w.slice(1)).join('');
   }
 
-  getAutocompleteAttr(field: string): string {
-    switch (field) {
-      case 'email': return 'email';
-      case 'username': return 'username';
-      case 'name': return 'given-name';
-      case 'lastName': return 'family-name';
-      case 'url':
-      case 'legal_url': return 'url';
-      case 'password': return this.isEditMode ? 'current-password' : 'new-password';
-      // Campos que NO queremos que el navegador rellene
-      case 'uuid':
-      case 'primaryColor':
-      case 'secondaryColor':
-        return 'off';
-      default:
-        return 'on';
-    }
-  }
+  // ---------- Mapeo payload backend ----------
+  private buildPayloadForBackend(entityPath: string, val: any): any {
+    const payload = { ...val };
 
-  getInputType(field: string): string {
-    switch (field) {
-      case 'email': return 'email';
-      case 'password': return 'password';
-      case 'url':
-      case 'legal_url': return 'url';
-      case 'interval':
-      case 'width':
-      case 'height':
-      case 'level': return 'number';
-      default: return 'text';
-    }
-  }
+    if (entityPath === 'user') {
+      // company → companyId
+      const c = payload.company;
+      if (c != null) {
+        const id = (typeof c === 'number' || typeof c === 'string') ? Number(c) : c?.id;
+        if (id != null) payload.companyId = id;
+      }
+      delete payload.company;
 
-  getInputMode(field: string): string {
-    switch (field) {
-      case 'interval':
-      case 'width':
-      case 'height':
-      case 'level': return 'numeric';
-      default: return 'text';
+      // profileImage → profileImageId (si el backend lo espera así)
+      const p = payload.profileImage;
+      if (p != null) {
+        const pid = (typeof p === 'number' || typeof p === 'string') ? Number(p) : p?.id;
+        if (pid != null) payload.profileImageId = pid;
+      }
+      delete payload.profileImage;
     }
-  }
 
+    return payload;
+  }
 }

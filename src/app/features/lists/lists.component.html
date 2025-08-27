@@ -33,10 +33,19 @@
 <mat-card class="table-container" *ngIf="!isMedia && displayedColumns.length">
   <table mat-table [dataSource]="items()" class="mat-elevation-z8" multiTemplateDataRows>
 
-    <ng-container [matColumnDef]="item" *ngFor="let item of properties">
-      <th mat-header-cell *matHeaderCellDef>{{ item }}</th>
+    <!-- Columna de estado SOLO para dispositivos -->
+    <ng-container matColumnDef="estado" *ngIf="isDevice">
+      <th mat-header-cell *matHeaderCellDef>Estado</th>
       <td mat-cell *matCellDef="let d">
-        <!-- ✅ Celdas especiales por campo -->
+        <div class="cell--status" [matTooltip]="isOnline(d) ? 'Conectado' : 'Desconectado'">
+          <span class="status-dot" [class.online]="isOnline(d)" [class.offline]="!isOnline(d)"></span>
+        </div>
+      </td>
+    </ng-container>
+
+    <ng-container [matColumnDef]="item" *ngFor="let item of properties">
+      <th mat-header-cell *matHeaderCellDef>{{ columnHeader(item) }}</th>
+      <td mat-cell *matCellDef="let d">
         <ng-container [ngSwitch]="item">
 
           <!-- primaryColor -->
@@ -59,10 +68,16 @@
             <ng-template #noLogoTpl>—</ng-template>
           </div>
 
-          <!-- Fallback original -->
-          <span *ngSwitchDefault>
-            {{ isObject(d[item]) ? extractValue(d[item], item) : d[item] }}
-          </span>
+          <!-- Otros campos: si hay link relacional, conviértelo en <a> -->
+          <ng-container *ngSwitchDefault>
+            <ng-container *ngIf="linkForCell(d, item) as link; else plainCell">
+              <a [routerLink]="link">{{ renderCell(d, item) }}</a>
+            </ng-container>
+            <ng-template #plainCell>
+              <span>{{ renderCell(d, item) }}</span>
+            </ng-template>
+          </ng-container>
+
         </ng-container>
       </td>
     </ng-container>
@@ -73,7 +88,7 @@
         <button mat-icon-button color="primary" *ngIf="titleList === 'Dispositivos'" (click)="openAdviceDialog(d.id)">
           <mat-icon>campaign</mat-icon>
         </button>
-        <button mat-icon-button color="accent" [routerLink]="[router.url, 'edit', d.id]">
+        <button mat-icon-button color="accent" [routerLink]="editLink(d.id)">
           <mat-icon>edit</mat-icon>
         </button>
         <button mat-icon-button color="warn" (click)="delete(d.id)">
