@@ -40,6 +40,13 @@
     "typescript": "~5.5.2"
   },
   "engines": {
-    "node": ">=16.0.0"
+    "node": "24.x",
+    "npm": "11.x"
+  },
+  "overrides": {
+    "chokidar": "3.6.0",
+    "readdirp": "3.6.0",
+    "glob-parent": "5.1.2",
+    "picomatch": "2.3.1"
   }
 }
