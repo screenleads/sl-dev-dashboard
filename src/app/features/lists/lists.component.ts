@@ -38,7 +38,7 @@ export class ListsComponent implements OnDestroy {
   private presenceService = inject(CrudService);    // Para /ws/status
   private snackBar = inject(MatSnackBar);
   private dialog = inject(MatDialog);
-  public  router = inject(Router);
+  public router = inject(Router);
   private route = inject(ActivatedRoute);
   private metadata = inject(MetadataService);
 
@@ -163,7 +163,7 @@ export class ListsComponent implements OnDestroy {
 
   private configureForEntity(entityName: string, rawPath: string) {
     this.titleList = this.labelMap[entityName] ?? this.humanize(entityName);
-    this.isMedia  = entityName === 'Media';
+    this.isMedia = entityName === 'Media';
     this.isDevice = entityName === 'Device';
 
     const withCount = false;
@@ -439,6 +439,29 @@ export class ListsComponent implements OnDestroy {
     }
   }
 
+  openAdviceDialog(deviceId: number): void {
+    import('../device-advices-dialog/device-advices-dialog.component').then(m => {
+      this.dialog.open(m.DeviceAdvicesDialogComponent, {
+        data: { deviceId },
+        width: '600px'
+      });
+    });
+  }
+
+  // NUEVO: abrir el modal de acciones del dispositivo (vía WebSocket)
+  openDeviceActionsDialog(device: any): void {
+    import('../device-actions-dialog/device-actions-dialog.component').then(m => {
+      this.dialog.open(m.DeviceActionsDialogComponent, {
+        data: {
+          device,
+          roomId: (device?.uuid ?? device?.id ?? '').toString()
+        },
+        width: '520px',
+        autoFocus: false
+      });
+    });
+  }
+
   // ============== HELPERS ==============
 
   normalizeColor(value: any): string {
@@ -490,8 +513,8 @@ export class ListsComponent implements OnDestroy {
 
   private toKebabCase(name: string): string {
     return name.replace(/([a-z0-9])([A-Z])/g, '$1-$2')
-               .replace(/[\s_]+/g, '-')
-               .toLowerCase();
+      .replace(/[\s_]+/g, '-')
+      .toLowerCase();
   }
 
   private toPascal(name: string): string {
@@ -505,14 +528,5 @@ export class ListsComponent implements OnDestroy {
   isVideo(url: string | undefined | null): boolean {
     if (!url) return false;
     return url.endsWith('.mp4') || url.endsWith('.webm') || url.endsWith('.mov');
-  }
-
-  openAdviceDialog(deviceId: number): void {
-    import('../device-advices-dialog/device-advices-dialog.component').then(m => {
-      this.dialog.open(m.DeviceAdvicesDialogComponent, {
-        data: { deviceId },
-        width: '600px'
-      });
-    });
   }
 }

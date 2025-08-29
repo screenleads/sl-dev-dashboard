@@ -1,0 +1,35 @@
+<h2 mat-dialog-title>Acciones para {{ data?.device?.name || data?.device?.uuid || ('ID ' + data?.device?.id) }}</h2>
+
+<div mat-dialog-content class="content">
+    <div class="quick-actions">
+        <button mat-raised-button color="primary" (click)="action('REFRESH_ADS')">
+            <mat-icon>refresh</mat-icon>
+            Refrescar anuncios
+        </button>
+
+        <button mat-raised-button color="warn" (click)="action('RESTART_APP')">
+            <mat-icon>restart_alt</mat-icon>
+            Reiniciar app
+        </button>
+
+        <button mat-raised-button color="accent" (click)="action('MAINTENANCE_MODE')">
+            <mat-icon>construction</mat-icon>
+            Modo mantenimiento
+        </button>
+    </div>
+
+    <form [formGroup]="notifyForm" class="notify-form">
+        <mat-form-field appearance="outline" class="w-full">
+            <mat-label>Notificar al dispositivo</mat-label>
+            <input matInput formControlName="message" placeholder="Texto de la notificación">
+        </mat-form-field>
+        <button mat-stroked-button color="primary" (click)="sendNotification()" [disabled]="notifyForm.invalid">
+            <mat-icon>campaign</mat-icon>
+            Enviar notificación
+        </button>
+    </form>
+</div>
+
+<div mat-dialog-actions align="end">
+    <button mat-button mat-dialog-close>Cerrar</button>
+</div>

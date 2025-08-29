@@ -37,9 +37,10 @@
     <ng-container matColumnDef="estado" *ngIf="isDevice">
       <th mat-header-cell *matHeaderCellDef>Estado</th>
       <td mat-cell *matCellDef="let d">
-        <div class="cell--status" [matTooltip]="isOnline(d) ? 'Conectado' : 'Desconectado'">
+        <button class="cell--status" mat-icon-button [matTooltip]="isOnline(d) ? 'Conectado' : 'Desconectado'"
+          (click)="openDeviceActionsDialog(d)">
           <span class="status-dot" [class.online]="isOnline(d)" [class.offline]="!isOnline(d)"></span>
-        </div>
+        </button>
       </td>
     </ng-container>
 
