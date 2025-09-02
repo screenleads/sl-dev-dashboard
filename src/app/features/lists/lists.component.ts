@@ -12,6 +12,8 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 
 import { CrudService } from '../../core/services/crud.service';
 import { MetadataService, EntityInfo } from '../../core/services/meta-data.service';
+import { AuthenticationService } from '../../core/services/authentication/authentication.service';
+
 
 @Component({
   standalone: true,
@@ -33,20 +35,21 @@ import { MetadataService, EntityInfo } from '../../core/services/meta-data.servi
 })
 export class ListsComponent implements OnDestroy {
   // Servicios
-  private service = inject(CrudService);            // CRUD principal
-  private foreignService = inject(CrudService);     // CRUD auxiliar para *Id -> label
-  private presenceService = inject(CrudService);    // Para /ws/status
+  private service = inject(CrudService);
+  private foreignService = inject(CrudService);
+  private presenceService = inject(CrudService);
   private snackBar = inject(MatSnackBar);
   private dialog = inject(MatDialog);
   public router = inject(Router);
   private route = inject(ActivatedRoute);
   private metadata = inject(MetadataService);
+  private auth = inject(AuthenticationService);
 
   // Estado general
   titleList = '';
   isMedia = false;
-  isDevice = false;              // ← para mostrar columna de estado
-  activeUiPath = '';             // path UI actual (p. ej. 'device-types')
+  isDevice = false;
+  activeUiPath = '';
 
   // Datos / columnas
   items: WritableSignal<any[]> = signal([]);
@@ -59,14 +62,14 @@ export class ListsComponent implements OnDestroy {
 
   // Mapas de ids -> labels
   idLabelMaps: Record<string, Map<number | string, string>> = {};
-  // Mapa { relación -> columnaId } p. ej. { company: 'companyId' }
   relationIdColMap: Record<string, string> = {};
 
-  // Exclusiones de columnas visibles
-  excludedColumns: string[] = [
+  // Exclusiones base (siempre ocultas)
+  private readonly defaultExcludedColumns: string[] = [
     'id', 'devices', 'advices', 'users', 'roles',
     'timeRanges', 'visibilityRules', 'profileImage', 'password'
   ];
+  excludedColumns: string[] = [...this.defaultExcludedColumns];
 
   // Entidades que no listamos
   private excludedEntities: string[] = ['AdviceVisibilityRule', 'TimeRange'];
@@ -126,7 +129,7 @@ export class ListsComponent implements OnDestroy {
 
   // ---- Presencia WS ----
   private presenceInterval: any = null;
-  private activeChannels: string[] = []; // claves del mapa /ws/status (destinos suscritos)
+  private activeChannels: string[] = [];
 
   ngOnInit(): void {
     this.route.paramMap.subscribe(params => {
@@ -146,12 +149,8 @@ export class ListsComponent implements OnDestroy {
       this.activeUiPath = path;
       this.configureForEntity(entityName, path);
 
-      // Arranca/para el polling de presencia solo en Dispositivos
-      if (entityName === 'Device') {
-        this.startPresencePolling();
-      } else {
-        this.stopPresencePolling();
-      }
+      if (entityName === 'Device') this.startPresencePolling();
+      else this.stopPresencePolling();
     });
   }
 
@@ -166,6 +165,8 @@ export class ListsComponent implements OnDestroy {
     this.isMedia = entityName === 'Media';
     this.isDevice = entityName === 'Device';
 
+    this.excludedColumns = [...this.defaultExcludedColumns];
+
     const withCount = false;
     this.metadata.getEntities(withCount).subscribe({
       next: (entities) => {
@@ -174,8 +175,13 @@ export class ListsComponent implements OnDestroy {
         this.currentEntityMeta = meta;
 
         if (meta?.attributes) {
-          this.properties = Object.keys(meta.attributes)
+          const allProps = Object.keys(meta.attributes)
             .filter(k => !this.excludedColumns.includes(k));
+
+          const permissionExcluded = this.computePermissionExcludedColumns(entityName, allProps, meta);
+          this.excludedColumns.push(...permissionExcluded);
+
+          this.properties = allProps.filter(k => !this.excludedColumns.includes(k));
         } else {
           this.properties = [];
         }
@@ -188,10 +194,12 @@ export class ListsComponent implements OnDestroy {
 
             if (this.properties.length === 0 && data && data.length) {
               const keys = Object.keys(data[0] ?? {});
-              this.properties = keys.filter(k => !this.excludedColumns.includes(k));
+              const byData = keys.filter(k => !this.excludedColumns.includes(k));
+              const permissionExcluded2 = this.computePermissionExcludedColumns(entityName, byData, meta);
+              this.excludedColumns.push(...permissionExcluded2);
+              this.properties = byData.filter(k => !this.excludedColumns.includes(k));
             }
 
-            // Detecta { relacion -> *_Id }
             this.relationIdColMap = {};
             const sample = data?.[0] ?? {};
             for (const prop of this.properties) {
@@ -201,13 +209,11 @@ export class ListsComponent implements OnDestroy {
               }
             }
 
-            // Mapas de labels para *Id
             const idColsFromProps = this.properties.filter(k => /Id$/.test(k));
             const idColsFromRelationMap = Object.values(this.relationIdColMap);
             const idCols = Array.from(new Set([...idColsFromProps, ...idColsFromRelationMap]));
             this.prepareIdLabelMaps(idCols);
 
-            // Columnas visibles (con 'estado' al principio si es Device)
             this.displayedColumns = this.isDevice
               ? ['estado', ...this.properties, 'acciones']
               : [...this.properties, 'acciones'];
@@ -226,7 +232,10 @@ export class ListsComponent implements OnDestroy {
         this.service.getAll().subscribe((data: any[]) => {
           this.items.set(data || []);
           const keys = data && data.length ? Object.keys(data[0]) : [];
-          this.properties = keys.filter(k => !this.excludedColumns.includes(k));
+          const byData = keys.filter(k => !this.excludedColumns.includes(k));
+          const permissionExcluded = this.computePermissionExcludedColumns(entityName, byData, this.currentEntityMeta);
+          this.excludedColumns.push(...permissionExcluded);
+          this.properties = byData.filter(k => !this.excludedColumns.includes(k));
 
           this.relationIdColMap = {};
           const sample = data?.[0] ?? {};
@@ -319,10 +328,7 @@ export class ListsComponent implements OnDestroy {
   // ============== PRESENCIA WEBSOCKET ==============
 
   private startPresencePolling() {
-    // carga inicial
     this.loadPresence();
-
-    // refresco periódico (p.ej. 10 s)
     this.stopPresencePolling();
     this.presenceInterval = setInterval(() => this.loadPresence(), 10000);
   }
@@ -335,7 +341,6 @@ export class ListsComponent implements OnDestroy {
   }
 
   private loadPresence() {
-    // GET /ws/status usando el CRUD genérico
     this.presenceService.init('ws');
     this.presenceService.getCustom('status').subscribe({
       next: (res: Record<string, string[] | Set<string>>) => {
@@ -347,14 +352,11 @@ export class ListsComponent implements OnDestroy {
     });
   }
 
-  // Determina si un dispositivo está online buscando su uuid o id en los destinos activos
   isOnline(row: any): boolean {
     if (!row) return false;
     const uuid = (row.uuid ?? '').toString();
     const idStr = (row.id ?? '').toString();
     if (!this.activeChannels?.length) return false;
-
-    // match flexible por si tus topics son /topic/devices/{uuid} o similares
     return this.activeChannels.some(dest =>
       (uuid && dest.includes(uuid)) ||
       (idStr && dest.includes(`/${idStr}`))
@@ -448,7 +450,6 @@ export class ListsComponent implements OnDestroy {
     });
   }
 
-  // NUEVO: abrir el modal de acciones del dispositivo (vía WebSocket)
   openDeviceActionsDialog(device: any): void {
     import('../device-actions-dialog/device-actions-dialog.component').then(m => {
       this.dialog.open(m.DeviceActionsDialogComponent, {
@@ -462,7 +463,71 @@ export class ListsComponent implements OnDestroy {
     });
   }
 
-  // ============== HELPERS ==============
+  // ============== PERMISOS SOBRE COLUMNAS ==============
+
+  private computePermissionExcludedColumns(entityName: string, cols: string[], meta?: EntityInfo): string[] {
+    const denied: string[] = [];
+    const set = new Set(cols);
+
+    for (const col of set) {
+      const controller = this.resolveControllerEntityForField(entityName, col, meta);
+
+      // No ocultamos primitivos de la propia entidad por defecto.
+      if (!controller || controller === entityName) {
+        // Si quieres ocultarlos también cuando no hay <Entidad>Update, descomenta:
+        // if (!this.canUpdateEntity(controller ?? entityName)) denied.push(col);
+        continue;
+      }
+
+      if (!this.canUpdateEntity(controller)) {
+        denied.push(col);
+      }
+    }
+    return denied;
+  }
+
+  private resolveControllerEntityForField(entityName: string, col: string, meta?: EntityInfo): string | null {
+    if (/Id$/.test(col)) {
+      const inferred = this.inferEntityFromIdColumn(col);
+      if (inferred) return inferred;
+    }
+
+    const targetType = meta?.attributes?.[col];
+    if (typeof targetType === 'string' && this.isKnownEntityName(targetType)) {
+      if (col === 'roles' && entityName === 'User') return 'User';
+      return targetType;
+    }
+
+    const specialRel: Record<string, string> = {
+      company: 'Company',
+      media: 'Media',
+      promotion: 'Promotion',
+      profileImage: 'Media',
+      logo: 'Media',
+      type: entityName === 'Device' ? 'DeviceType' : entityName
+    };
+    if (specialRel[col]) return specialRel[col];
+
+    return entityName;
+  }
+
+  private isKnownEntityName(name: string): boolean {
+    return this.allEntitiesMeta.some(e => e.entityName === name);
+  }
+
+  private canUpdateEntity(controllerEntity: string): boolean {
+    const effective = controllerEntity === 'Role' ? 'User' : controllerEntity;
+    const key = this.toLowerCamel(effective) + 'Update';
+    const me = this.auth.getUser();
+    const roles = me?.roles ?? [];
+    return roles.some((r: any) => r?.[key] === true);
+  }
+
+  private toLowerCamel(pascal: string): string {
+    return pascal.replace(/^[A-Z]/, m => m.toLowerCase());
+  }
+
+  // ============== HELPERS VARIOS ==============
 
   normalizeColor(value: any): string {
     if (!value) return '';
@@ -524,9 +589,38 @@ export class ListsComponent implements OnDestroy {
       .map(w => w.charAt(0).toUpperCase() + w.slice(1))
       .join('');
   }
-
-  isVideo(url: string | undefined | null): boolean {
-    if (!url) return false;
-    return url.endsWith('.mp4') || url.endsWith('.webm') || url.endsWith('.mov');
+  // Dentro de la clase ListsComponent (como miembros públicos)
+  public get canCreateCurrent(): boolean {
+    const name = this.currentEntityMeta?.entityName;
+    if (!name) return false;
+    return this.canEntity('create', name);
   }
+  public get canUpdateCurrent(): boolean {
+    const name = this.currentEntityMeta?.entityName;
+    if (!name) return false;
+    return this.canEntity('update', name);
+  }
+  public get canDeleteCurrent(): boolean {
+    const name = this.currentEntityMeta?.entityName;
+    if (!name) return false;
+    return this.canEntity('delete', name);
+  }
+
+  // Ayudante público para plantillas
+  public canEntity(action: 'create' | 'update' | 'delete', entityPascal: string): boolean {
+    const effective = (entityPascal === 'Role') ? 'User' : entityPascal;
+    const key = this.toLowerCamel(effective) + action[0].toUpperCase() + action.slice(1); // p.ej. companyUpdate
+    const me = this.auth.getUser();
+    const roles = me?.roles ?? [];
+    return roles.some((r: any) => r?.[key] === true);
+  }
+
+  public isVideo(url: string | null | undefined): boolean {
+    if (!url) return false;
+    const u = String(url).toLowerCase();
+    // extensiones más comunes que ya usas en Media
+    return u.endsWith('.mp4') || u.endsWith('.webm') || u.endsWith('.mov');
+  }
+
+
 }

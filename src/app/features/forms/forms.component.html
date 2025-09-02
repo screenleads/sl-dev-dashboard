@@ -48,6 +48,26 @@
             </div>
           </div>
 
+          <!-- Multi-select específico para User.roles -->
+          <mat-form-field *ngIf="entityPath === 'user' && key.key === 'roles'" appearance="outline" class="full-width"
+            style="margin-bottom: 12px;">
+            <mat-label>Roles</mat-label>
+            <mat-select [formControlName]="key.key" multiple [compareWith]="compareById" name="roles">
+              <mat-option *ngFor="let option of foreignEntityLists['roles'] ?? []" [value]="option">
+                {{ option.role }} (nivel {{ option.level }})
+              </mat-option>
+            </mat-select>
+          </mat-form-field>
+
+          <!-- Chips informativos (opcional) -->
+          <div *ngIf="entityPath === 'user' && key.key === 'roles' && form?.get('roles')?.value?.length"
+            style="display:flex; gap:8px; flex-wrap: wrap; margin-bottom: 8px;">
+            <span *ngFor="let r of form?.get('roles')?.value"
+              style="padding: 4px 8px; border-radius: 12px; background: #f2f4f7; font-size: 12px;">
+              {{ (r?.role || r) }}
+            </span>
+          </div>
+
           <!-- Campo tipo texto (excluye los de color y especiales) -->
           <mat-form-field *ngIf="shouldRenderTextField(key.key) && !isColorField(key.key)" appearance="outline"
             class="full-width" style="margin-bottom: 12px;">
@@ -57,7 +77,7 @@
               [type]="(key.key === 'email') ? 'email' : (key.key === 'interval' ? 'number' : 'text')" />
           </mat-form-field>
 
-          <!-- Campo tipo select para relaciones (foreign) -->
+          <!-- Campo tipo select para relaciones (foreign) (roles queda excluido) -->
           <mat-form-field *ngIf="shouldRenderSelectField(key.key)" appearance="outline" class="full-width"
             style="margin-bottom: 12px;">
             <mat-label>{{ key.key | titlecase }}</mat-label>

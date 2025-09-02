@@ -1,7 +1,9 @@
 <mat-toolbar class="top-toolbar">
   <span>{{ titleList }}</span>
   <span class="spacer"></span>
-  <button mat-raised-button color="accent" [routerLink]="[router.url, 'new']">
+
+  <!-- Botón "Nuevo" solo si tengo permiso de creación sobre la entidad actual -->
+  <button mat-raised-button color="accent" [routerLink]="[router.url, 'new']" *ngIf="canCreateCurrent">
     <mat-icon>add</mat-icon>
     Nuevo
   </button>
@@ -17,11 +19,13 @@
       <ng-template #imageBlock>
         <img [src]="item.src" alt="preview" />
       </ng-template>
+
       <div class="actions">
-        <button mat-icon-button color="accent" [routerLink]="[router.url, 'edit', item.id]">
+        <!-- Editar/Borrar condicionados por permisos de la entidad actual -->
+        <button mat-icon-button color="accent" [routerLink]="[router.url, 'edit', item.id]" *ngIf="canUpdateCurrent">
           <mat-icon>edit</mat-icon>
         </button>
-        <button mat-icon-button color="warn" (click)="delete(item.id)">
+        <button mat-icon-button color="warn" (click)="delete(item.id)" *ngIf="canDeleteCurrent">
           <mat-icon>delete</mat-icon>
         </button>
       </div>
@@ -44,38 +48,41 @@
       </td>
     </ng-container>
 
-    <ng-container [matColumnDef]="item" *ngFor="let item of properties">
-      <th mat-header-cell *matHeaderCellDef>{{ columnHeader(item) }}</th>
-      <td mat-cell *matCellDef="let d">
-        <ng-container [ngSwitch]="item">
+    <!-- Columnas dinámicas (ya vienen filtradas por permisos desde TS en 'properties') -->
+    <ng-container [matColumnDef]="col" *ngFor="let col of properties">
+      <th mat-header-cell *matHeaderCellDef>{{ columnHeader(col) }}</th>
+      <td mat-cell *matCellDef="let row">
+        <ng-container [ngSwitch]="col">
 
           <!-- primaryColor -->
-          <div *ngSwitchCase="'primaryColor'" class="cell--color" [matTooltip]="normalizeColor(d[item])">
-            <span class="swatch" [style.background]="normalizeColor(d[item])"></span>
-            <span class="code">{{ normalizeColor(d[item]) || '—' }}</span>
+          <div *ngSwitchCase="'primaryColor'" class="cell--color" [matTooltip]="normalizeColor(row[col])">
+            <span class="swatch" [style.background]="normalizeColor(row[col])"></span>
+            <span class="code">{{ normalizeColor(row[col]) || '—' }}</span>
           </div>
 
           <!-- secondaryColor -->
-          <div *ngSwitchCase="'secondaryColor'" class="cell--color" [matTooltip]="normalizeColor(d[item])">
-            <span class="swatch" [style.background]="normalizeColor(d[item])"></span>
-            <span class="code">{{ normalizeColor(d[item]) || '—' }}</span>
+          <div *ngSwitchCase="'secondaryColor'" class="cell--color" [matTooltip]="normalizeColor(row[col])">
+            <span class="swatch" [style.background]="normalizeColor(row[col])"></span>
+            <span class="code">{{ normalizeColor(row[col]) || '—' }}</span>
           </div>
 
           <!-- logo (usa logo.src) -->
           <div *ngSwitchCase="'logo'" class="cell--logo">
-            <a *ngIf="d?.logo?.src; else noLogoTpl" [href]="d.logo.src" target="_blank" rel="noopener">
-              <img class="logo-thumb" [src]="d.logo.src" alt="Logo" loading="lazy" referrerpolicy="no-referrer" />
+            <a *ngIf="row?.logo?.src; else noLogoTpl" [href]="row.logo.src" target="_blank" rel="noopener">
+              <img class="logo-thumb" [src]="row.logo.src" alt="Logo" loading="lazy" referrerpolicy="no-referrer" />
             </a>
             <ng-template #noLogoTpl>—</ng-template>
           </div>
 
-          <!-- Otros campos: si hay link relacional, conviértelo en <a> -->
+          <!-- Otros campos: si hay link relacional, conviértelo en <a>.
+               (El link puede llevarte al edit de otra entidad; si quieres
+               bloquear navegación sin permiso, haz que linkForCell() devuelva null en ese caso.) -->
           <ng-container *ngSwitchDefault>
-            <ng-container *ngIf="linkForCell(d, item) as link; else plainCell">
-              <a [routerLink]="link">{{ renderCell(d, item) }}</a>
+            <ng-container *ngIf="linkForCell(row, col) as link; else plainCell">
+              <a [routerLink]="link">{{ renderCell(row, col) }}</a>
             </ng-container>
             <ng-template #plainCell>
-              <span>{{ renderCell(d, item) }}</span>
+              <span>{{ renderCell(row, col) }}</span>
             </ng-template>
           </ng-container>
 
@@ -83,16 +90,20 @@
       </td>
     </ng-container>
 
+    <!-- Acciones -->
     <ng-container matColumnDef="acciones">
       <th mat-header-cell *matHeaderCellDef>Acciones</th>
-      <td mat-cell *matCellDef="let d">
-        <button mat-icon-button color="primary" *ngIf="titleList === 'Dispositivos'" (click)="openAdviceDialog(d.id)">
+      <td mat-cell *matCellDef="let row">
+        <!-- Acción específica de dispositivos -->
+        <button mat-icon-button color="primary" *ngIf="titleList === 'Dispositivos'" (click)="openAdviceDialog(row.id)">
           <mat-icon>campaign</mat-icon>
         </button>
-        <button mat-icon-button color="accent" [routerLink]="editLink(d.id)">
+
+        <button mat-icon-button color="accent" [routerLink]="editLink(row.id)" *ngIf="canUpdateCurrent">
           <mat-icon>edit</mat-icon>
         </button>
-        <button mat-icon-button color="warn" (click)="delete(d.id)">
+
+        <button mat-icon-button color="warn" (click)="delete(row.id)" *ngIf="canDeleteCurrent">
           <mat-icon>delete</mat-icon>
         </button>
       </td>

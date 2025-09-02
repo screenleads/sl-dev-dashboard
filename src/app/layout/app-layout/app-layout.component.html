@@ -12,7 +12,20 @@
           <div>{{ user?.lastName?.charAt(0).toUpperCase() }}</div>
         </div>
       </div>
-      <span class="username" [innerHTML]="user?.username"></span>
+      <div class="my-info">
+        <span class="username">{{ user?.username }}</span>
+
+        <!-- NUEVO: etiqueta con el rol principal -->
+        <span class="role-badge" *ngIf="mainRoleLabel">{{ mainRoleLabel }}</span>
+      </div>
+
+
+      <!-- (Opcional) chips con todos los roles del usuario -->
+      <!--
+      <div class="roles-chips" *ngIf="roleLabels.length > 1">
+        <span class="chip" *ngFor="let r of roleLabels">{{ r }}</span>
+      </div>
+      -->
     </div>
 
     <a *ngFor="let item of navItems" [routerLink]="item.path" routerLinkActive="active" class="option">

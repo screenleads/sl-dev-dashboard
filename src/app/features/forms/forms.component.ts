@@ -24,6 +24,8 @@ import {
 } from 'sl-dev-components';
 import { Media, MediaModel } from '../../core/models/media.model';
 import { MetadataService, EntityInfo } from '../../core/services/meta-data.service';
+import { AuthenticationService } from '../../core/services/authentication/authentication.service';
+
 
 @Component({
   standalone: true,
@@ -61,6 +63,7 @@ export class FormsComponent implements OnInit {
   private foreignService = inject(CrudService);
   private http = inject(HttpClient);
   private metadata = inject(MetadataService);
+  private auth = inject(AuthenticationService);
 
   form: FormGroup | null = null;
   isEditMode = false;
@@ -71,60 +74,69 @@ export class FormsComponent implements OnInit {
 
   daysOfWeek = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY', 'SUNDAY'];
 
-  // Campos que NO modelamos en el form
-  excludedFields: string[] = ['id', 'devices', 'advices', 'users', 'roles', 'timeRanges'];
+  // Ojo: 'roles' YA NO está excluido para poder pintarlo
+  excludedFields: string[] = ['id', 'devices', 'advices', 'users', 'timeRanges'];
 
-  public entityPath = '';         // p.ej. 'device-types'
-  public entityClassName = '';    // p.ej. 'DeviceType'
+  public entityPath = '';
+  public entityClassName = '';
   uploading = false;
   previewUrl: string | null = null;
 
   private colorFields = ['primaryColor', 'secondaryColor'];
 
   // ===================== MAPEOS CANÓNICOS ======================
-  /** Mapa canónico: path del router => endpoint REST */
   private readonly PATH_TO_ENDPOINT: Record<string, string> = {
-    'device-types' : 'devices/types',
-    'media-types'  : 'medias/types',
-    'device'       : 'devices',
-    'media'        : 'medias',
-    'promotion'    : 'promotions',
-    'company'      : 'companies',
-    'advice'       : 'advices',
-    'user'         : 'users',
-    'role'         : 'roles',
-    'app-version'  : 'app-versions'
+    'device-types': 'devices/types',
+    'media-types': 'medias/types',
+    'device': 'devices',
+    'media': 'medias',
+    'promotion': 'promotions',
+    'company': 'companies',
+    'advice': 'advices',
+    'user': 'users',
+    'role': 'roles',
+    'app-version': 'app-versions'
   };
 
-  /** Mapa canónico: Nombre de Entidad (PascalCase) => endpoint REST (para foreign lists) */
   private readonly ENTITY_TO_ENDPOINT: Record<string, string> = {
-    DeviceType : 'devices/types',
-    MediaType  : 'medias/types',
-    Device     : 'devices',
-    Media      : 'medias',
-    Promotion  : 'promotions',
-    Company    : 'companies',
-    Advice     : 'advices',
-    User       : 'users',
-    Role       : 'roles',
-    AppVersion : 'app-versions'
+    DeviceType: 'devices/types',
+    MediaType: 'medias/types',
+    Device: 'devices',
+    Media: 'medias',
+    Promotion: 'promotions',
+    Company: 'companies',
+    Advice: 'advices',
+    User: 'users',
+    Role: 'roles',
+    AppVersion: 'app-versions'
   };
   // ============================================================
 
   async ngOnInit(): Promise<void> {
     const id = this.route.snapshot.paramMap.get('id');
-    const pathParts = this.router.url.split('/').filter(Boolean); // e.g. ['device-types','edit','1']
+    const pathParts = this.router.url.split('/').filter(Boolean);
     this.entityPath = pathParts[0] || '';
     this.entityClassName = this.pathToEntity(this.entityPath);
 
-    // 1) Carga metadatos
+    // 1) Carga ROLES asignables si estamos en 'user'
+    if (this.entityPath === 'user') {
+      this.foreignService.init('roles/assignable');
+      this.foreignService.getAll().subscribe({
+        next: data => {
+          this.foreignEntityLists['roles'] = data ?? [];
+          this.rehydrateRoles();
+        },
+        error: () => this.foreignEntityLists['roles'] = []
+      });
+    }
+
+    // 2) Carga metadatos y datos del recurso
     const withCount = false;
     this.metadata.getEntities(withCount).subscribe({
       next: (entities) => {
         const allEntityNames = new Set(entities.map(e => e.entityName));
         const currentMeta = entities.find(e => e.entityName === this.entityClassName);
 
-        // Carga listas foráneas según metadatos
         if (currentMeta?.attributes) {
           const foreignAttrs = Object.entries(currentMeta.attributes)
             .filter(([_, type]) => typeof type === 'string' && allEntityNames.has(type as string))
@@ -148,7 +160,6 @@ export class FormsComponent implements OnInit {
                   }
                 }
 
-                // Tu lógica específica para advice
                 if (this.entityPath === 'advice') {
                   if (attr === 'media') this.mediaList = this.foreignEntityLists[attr];
                   if (attr === 'promotion') this.promotionList = this.foreignEntityLists[attr];
@@ -159,7 +170,6 @@ export class FormsComponent implements OnInit {
           });
         }
 
-        // 2) Inicializa endpoint principal y carga
         const endpoint = this.getEndpointFromPath(this.entityPath);
         this.initEndpointAndLoad(id, endpoint, currentMeta);
       },
@@ -170,7 +180,6 @@ export class FormsComponent implements OnInit {
     });
   }
 
-  /** Inicializa CRUD al endpoint y construye el form (edit/create) */
   private initEndpointAndLoad(id: string | null, endpoint: string, meta?: EntityInfo) {
     this.service.init(endpoint);
 
@@ -198,14 +207,13 @@ export class FormsComponent implements OnInit {
     }
   }
 
-  /** Modelo vacío según metadatos */
   private buildEmptyModelFromMeta(meta: EntityInfo): any {
     const model: any = {};
     for (const [k, t] of Object.entries(meta.attributes || {})) {
       if (this.excludedFields.includes(k)) continue;
 
       if (typeof t === 'string' && this.isKnownEntityType(t)) {
-        model[k] = null; // relación
+        model[k] = null;
         continue;
       }
       if (t === 'List' || t === 'Set') {
@@ -227,13 +235,10 @@ export class FormsComponent implements OnInit {
   }
 
   // ===================== RESOLUCIÓN DE ENDPOINTS ======================
-  /** Endpoint principal desde el path del router (usa mapeo canónico) */
   private getEndpointFromPath(path: string): string {
     if (this.PATH_TO_ENDPOINT[path]) return this.PATH_TO_ENDPOINT[path];
     return this.ensurePlural(path);
   }
-
-  /** Endpoint para ENTIDAD (PascalCase) para foreign lists (usa mapeo canónico) */
   private getEndpointForEntity(entityName: string): string {
     if (this.ENTITY_TO_ENDPOINT[entityName]) return this.ENTITY_TO_ENDPOINT[entityName];
     const kebab = this.toKebabCase(entityName);
@@ -244,13 +249,11 @@ export class FormsComponent implements OnInit {
   // --------- Form ---------
 
   isMediaUploader(key: any) {
-    // Media.src (entity media), Company.logo y User.profileImage
     return (this.entityPath === 'media' && key.key === 'src')
-        || (this.entityPath === 'company' && key.key === 'logo')
-        || (this.entityPath === 'user' && key.key === 'profileImage');
+      || (this.entityPath === 'company' && key.key === 'logo')
+      || (this.entityPath === 'user' && key.key === 'profileImage');
   }
 
-  // Sanea *_Id → relación base (companyId → company)
   private sanitizeModelWithIdRelations(model: any): any {
     if (!model || typeof model !== 'object') return model;
     const clone: any = { ...model };
@@ -275,12 +278,17 @@ export class FormsComponent implements OnInit {
     };
 
     const group: Record<string, any> = {};
-
-    // normaliza *_Id
     model = this.sanitizeModelWithIdRelations(model);
 
     for (const key of Object.keys(model).filter(arr => !this.excludedFields.includes(arr))) {
       if (key === 'id') continue;
+
+      // roles: acepta array de strings u objetos
+      if (key === 'roles') {
+        const arr = Array.isArray(model.roles) ? model.roles : [];
+        group[key] = [arr];
+        continue;
+      }
 
       if (key === 'visibilityRules') {
         group[key] = this.fb.array(
@@ -301,20 +309,17 @@ export class FormsComponent implements OnInit {
         continue;
       }
 
-      // Relaciones: si hay lista foránea y el valor es id, mapear a objeto
       if (this.foreignEntityLists[key] && (typeof model[key] === 'number' || typeof model[key] === 'string')) {
         const found = (this.foreignEntityLists[key] ?? []).find((o: any) => o?.id == model[key]);
         group[key] = [found ?? model[key] ?? null];
         continue;
       }
 
-      // Si llega objeto con id
       if (typeof model[key] === 'object' && model[key] !== null && 'id' in model[key]) {
         group[key] = [model[key]];
         continue;
       }
 
-      // Primitivos
       if (typeof model[key] === 'boolean') {
         group[key] = [model[key] ?? false];
       } else if (typeof model[key] === 'number') {
@@ -330,6 +335,7 @@ export class FormsComponent implements OnInit {
     }
 
     this.form = this.fb.group(group);
+    this.rehydrateRoles();
   }
 
   // ---------- Arrays de Advice ----------
@@ -352,6 +358,28 @@ export class FormsComponent implements OnInit {
     this.getTimeRanges(ruleIndex).removeAt(rangeIndex);
   }
 
+  /** Rehidrata el control 'roles' con objetos de la lista asignable */
+  private rehydrateRoles() {
+    if (!this.form) return;
+    const ctrl = this.form.get('roles');
+    if (!ctrl) return;
+
+    const current = ctrl.value;
+    const options = this.foreignEntityLists['roles'] ?? [];
+    if (!Array.isArray(current) || options.length === 0) return;
+
+    const mapped = current.map((r: any) => {
+      const roleName = typeof r === 'string' ? r : r?.role;
+      const roleId = typeof r === 'object' ? r?.id : null;
+      let found: any = null;
+      if (roleId != null) found = options.find((o: any) => o?.id == roleId);
+      if (!found && roleName) found = options.find((o: any) => o?.role === roleName);
+      return found ?? r;
+    });
+
+    ctrl.setValue(mapped, { emitEvent: false });
+  }
+
   // ---------- Guardar ----------
   save() {
     if (!this.form || this.form.invalid) return;
@@ -365,27 +393,60 @@ export class FormsComponent implements OnInit {
     });
 
     const formValue = this.form.value;
-
-    // Payload para backend
     const payload: any = this.buildPayloadForBackend(this.entityPath, formValue);
 
     const req = this.isEditMode
       ? this.service.update({ id: +this.route.snapshot.paramMap.get('id')!, ...payload })
       : this.service.create(payload);
 
-    req.subscribe(() => {
-      this.snackBar.open('Elemento guardado correctamente', 'Cerrar', { duration: 2000 });
-      this.router.navigate(['/' + this.entityPath]);
+    req.subscribe({
+      next: (saved: any) => {
+        // Si estoy editando MI usuario, refrescar /auth/me (y opcionalmente token)
+        if (this.entityPath === 'user' && this.isEditMode) {
+          const editedId = +this.route.snapshot.paramMap.get('id')!;
+          const me = this.auth.getUser();
+          const myId = me?.id;
+
+          if (myId && editedId === myId) {
+            this.auth.refreshMe().subscribe({
+              next: () => {
+                // Opcional: refrescar token si tu UI depende de claims del JWT (roles, etc.)
+                this.auth.refreshToken().subscribe({
+                  next: () => {
+                    this.snackBar.open('Tu sesión se ha actualizado', 'Cerrar', { duration: 2000 });
+                    this.router.navigate(['/' + this.entityPath]);
+                  },
+                  error: () => {
+                    this.snackBar.open('Datos actualizados (token sin refrescar).', 'Cerrar', { duration: 2500 });
+                    this.router.navigate(['/' + this.entityPath]);
+                  }
+                });
+              },
+              error: () => {
+                // Aunque falle /auth/me, navegamos igualmente
+                this.router.navigate(['/' + this.entityPath]);
+              }
+            });
+            return; // Evita doble navegación
+          }
+        }
+
+        // Flujo normal si no edité mi usuario
+        this.snackBar.open('Elemento guardado correctamente', 'Cerrar', { duration: 2000 });
+        this.router.navigate(['/' + this.entityPath]);
+      },
+      error: () => {
+        this.snackBar.open('Error al guardar', 'Cerrar', { duration: 3000 });
+      }
     });
   }
 
   // ---------- Render helpers ----------
-  // Tolerante: objeto o id
   compareById = (a: any, b: any) => (a?.id ?? a) === (b?.id ?? b);
 
   shouldRenderTextField(key: string): boolean {
-    // Nunca pintes *_Id
     if (/Id$/.test(key)) return false;
+    if (key === 'roles') return false;
     const isForeign = !!this.foreignEntityLists[key];
     if (isForeign) return false;
     if (this.isColorField(key)) return false;
@@ -394,11 +455,13 @@ export class FormsComponent implements OnInit {
 
   shouldRenderSelectField(key: string): boolean {
     if (['src', 'logo', 'profileImage'].includes(key)) return false;
+    if (this.entityPath === 'user' && key === 'roles') return false;
     return !!this.foreignEntityLists[key];
   }
 
   getOptionLabel(option: any, key: string): string {
     if (!option) return '';
+    if (key === 'roles' || option.role) return `${option.role} (nivel ${option.level ?? '-'})`;
     const labelMap: Record<string, string> = {
       company: option.name,
       type: option.type,
@@ -421,7 +484,6 @@ export class FormsComponent implements OnInit {
 
     this.uploading = true;
 
-    // Subimos contra 'medias' SIEMPRE
     this.service.init('medias');
     this.service.createCustom('upload', formData).subscribe({
       next: res => {
@@ -429,7 +491,6 @@ export class FormsComponent implements OnInit {
         if (!filename) {
           this.snackBar.open('Error: no se recibió el nombre del archivo', 'Cerrar', { duration: 3000 });
           this.uploading = false;
-          // Volver al endpoint REAL del recurso principal
           this.service.init(this.getEndpointFromPath(this.entityPath));
           return;
         }
@@ -471,7 +532,6 @@ export class FormsComponent implements OnInit {
           this.previewUrl = res.url;
           this.snackBar.open('Archivo comprimido listo', 'Cerrar', { duration: 2000 });
           this.uploading = false;
-          // Volver al endpoint REAL del recurso principal
           this.service.init(this.getEndpointFromPath(this.entityPath));
         } else {
           setTimeout(() => this.pollForCompressedUrl(filename, attempts + 1), 5000);
@@ -513,8 +573,8 @@ export class FormsComponent implements OnInit {
   // ----------------------- Helpers de string/rutas -----------------------
   private toKebabCase(name: string): string {
     return name.replace(/([a-z0-9])([A-Z])/g, '$1-$2')
-               .replace(/[\s_]+/g, '-')
-               .toLowerCase();
+      .replace(/[\s_]+/g, '-')
+      .toLowerCase();
   }
   private ensurePlural(path: string): string {
     if (path.endsWith('s')) return path;
@@ -530,7 +590,6 @@ export class FormsComponent implements OnInit {
     const payload = { ...val };
 
     if (entityPath === 'user') {
-      // company → companyId
       const c = payload.company;
       if (c != null) {
         const id = (typeof c === 'number' || typeof c === 'string') ? Number(c) : c?.id;
@@ -538,13 +597,18 @@ export class FormsComponent implements OnInit {
       }
       delete payload.company;
 
-      // profileImage → profileImageId (si el backend lo espera así)
       const p = payload.profileImage;
       if (p != null) {
         const pid = (typeof p === 'number' || typeof p === 'string') ? Number(p) : p?.id;
         if (pid != null) payload.profileImageId = pid;
       }
       delete payload.profileImage;
+
+      if (Array.isArray(payload.roles)) {
+        payload.roles = payload.roles.map((r: any) => r?.role ?? r);
+      } else {
+        payload.roles = [];
+      }
     }
 
     return payload;

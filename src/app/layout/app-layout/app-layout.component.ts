@@ -1,4 +1,4 @@
-import { Component } from '@angular/core';
+import { Component, OnInit } from '@angular/core';
 import { RouterModule } from '@angular/router';
 import { MatSidenavModule } from '@angular/material/sidenav';
 import { MatToolbarModule } from '@angular/material/toolbar';
@@ -12,6 +12,7 @@ import { HttpClientModule } from '@angular/common/http';
 import { MetadataService, EntityInfo } from '../../core/services/meta-data.service';
 
 type NavItem = { path: string; label: string; icon: string; order?: number };
+type RoleLike = { role?: string; description?: string; level?: number };
 
 @Component({
   selector: 'app-layout',
@@ -31,18 +32,15 @@ type NavItem = { path: string; label: string; icon: string; order?: number };
     HttpClientModule
   ]
 })
-export class AppLayoutComponent {
+export class AppLayoutComponent implements OnInit {
   user: any;
   navItems: NavItem[] = [];
 
-  // 👇 Edita aquí qué entidades NO quieres mostrar en el menú
   excludedEntityNames: string[] = [
     'AdviceVisibilityRule',
     'TimeRange'
-    // 'Role', 'User', 'AppVersion', etc. (si quisieras)
   ];
 
-  // Rutas "conocidas" (mantiene tus paths actuales)
   private routeMap: Record<string, string> = {
     Device: '/device',
     DeviceType: '/device-types',
@@ -51,7 +49,6 @@ export class AppLayoutComponent {
     Promotion: '/promotion',
     Advice: '/advice',
     Company: '/company',
-    // opcionales conocidos:
     User: '/user',
     Role: '/role',
     AppVersion: '/app-version',
@@ -113,21 +110,16 @@ export class AppLayoutComponent {
     const withCount = false;
 
     this.metadataService.getEntities(withCount).subscribe({
-      next: (entities) => {
-        // construimos TODO el menú menos los excluidos
+      next: (entities: EntityInfo[]) => {
         const dynamic = this.buildMenuFromEntities(entities);
-
-        // (Opcional) añade aquí items fijos extra si quieres forzar su presencia
-        // const statics: NavItem[] = [ ... ];
-        // this.navItems = this.mergeByPath(dynamic, statics);
-
         this.navItems = this.dedupeByPath(dynamic);
         this.navItems.sort(
-          (a, b) => (a.order ?? 999) - (b.order ?? 999) || a.label.localeCompare(b.label)
+          (a: NavItem, b: NavItem) =>
+            (a.order ?? 999) - (b.order ?? 999) ||
+            a.label.localeCompare(b.label)
         );
       },
       error: () => {
-        // Fallback estático por si falla el endpoint
         this.navItems = [
           { path: '/device', label: 'Dispositivos', icon: 'devices', order: 10 },
           { path: '/device-types', label: 'Tipos de Dispositivo', icon: 'category', order: 11 },
@@ -145,25 +137,57 @@ export class AppLayoutComponent {
     this.authenticationService.logout();
   }
 
+  // ===== Roles mostrados bajo el username =====
+
+  /** Rol “principal”: el de menor level (más privilegio). */
+  get mainRoleLabel(): string {
+    const roles: RoleLike[] = this.user?.roles ?? [];
+    if (!roles.length) return '';
+    const top = [...roles].sort(
+      (a: RoleLike, b: RoleLike) => (a?.level ?? 999) - (b?.level ?? 999)
+    )[0];
+    return top?.description || this.prettyRole(top?.role) || '';
+  }
+
+  /** (Opcional) Todos los roles como etiquetas legibles. */
+  get roleLabels(): string[] {
+    const roles: RoleLike[] = this.user?.roles ?? [];
+    return roles
+      .sort((a: RoleLike, b: RoleLike) => (a?.level ?? 999) - (b?.level ?? 999))
+      .map((r: RoleLike) => r?.description || this.prettyRole(r?.role))
+      .filter((s: string | undefined): s is string => !!s);
+  }
+
+  /** ROLE_COMPANY_ADMIN -> "Company Admin" */
+  private prettyRole(role?: string): string {
+    if (!role) return '';
+    return role
+      .replace(/^ROLE_/, '')
+      .toLowerCase()
+      .split('_')
+      .map(w => w.charAt(0).toUpperCase() + w.slice(1))
+      .join(' ');
+  }
+
+  // ===== Menú dinámico =====
+
   private buildMenuFromEntities(entities: EntityInfo[]): NavItem[] {
     const excluded = new Set(this.excludedEntityNames.map(n => n.toLowerCase()));
 
     return entities
-      .filter(e => !!e?.entityName)
-      .filter(e => !excluded.has(e.entityName.toLowerCase()))
-      .map(e => {
+      .filter((e: EntityInfo) => !!e?.entityName)
+      .filter((e: EntityInfo) => !excluded.has(e.entityName.toLowerCase()))
+      .map((e: EntityInfo) => {
         const key = e.entityName;
         const path = this.routeMap[key] ?? ('/' + this.toKebabCase(key));
         const label = this.labelMap[key] ?? this.humanize(key);
         const icon = this.iconMap[key] ?? 'dataset';
         const order = this.orderMap[key];
-
         return { path, label, icon, order };
       });
   }
 
   private toKebabCase(name: string): string {
-    // "AppVersion" -> "app-version"
     return name
       .replace(/([a-z0-9])([A-Z])/g, '$1-$2')
       .replace(/[\s_]+/g, '-')
@@ -171,7 +195,6 @@ export class AppLayoutComponent {
   }
 
   private humanize(name: string): string {
-    // "AppVersion" -> "App Version"
     return name.replace(/([a-z0-9])([A-Z])/g, '$1 $2').trim();
   }
 
