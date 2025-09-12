@@ -1,0 +1,28 @@
+<div class="overlay" *ngIf="upload.isUploading()">
+    <div class="panel">
+        <!-- dentro de app-upload-overlay -->
+        <div class="header" *ngIf="upload.isUploading(); else processingTpl">
+            <mat-icon>cloud_upload</mat-icon><span>Subiendo archivos...</span>
+        </div>
+        <ng-template #processingTpl>
+            <div class="header">
+                <mat-icon>schedule</mat-icon><span>Procesando archivos...</span>
+            </div>
+        </ng-template>
+
+        <mat-progress-bar mode="determinate" [value]="upload.overallProgress()"></mat-progress-bar>
+
+        <ul class="list">
+            <li *ngFor="let it of upload.items()">
+                <div class="row">
+                    <span class="name" [title]="it.name">{{ it.name }}</span>
+                    <span class="pct">{{ it.progress }}%</span>
+                </div>
+                <mat-progress-bar mode="determinate" [value]="it.progress"></mat-progress-bar>
+                <div class="error" *ngIf="it.error">Error: {{ it.error }}</div>
+            </li>
+        </ul>
+
+        <div class="note">No cierres esta ventana ni cambies de pantalla mientras se completa la subida.</div>
+    </div>
+</div>

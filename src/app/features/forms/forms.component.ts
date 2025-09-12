@@ -1,5 +1,5 @@
 import { Component, inject, OnInit } from '@angular/core';
-import { FormBuilder, FormGroup, FormArray, FormsModule, ReactiveFormsModule } from '@angular/forms';
+import { FormBuilder, FormGroup, FormArray, FormsModule, ReactiveFormsModule, AbstractControl, ValidationErrors } from '@angular/forms';
 import { CommonModule } from '@angular/common';
 import { MatCardModule } from '@angular/material/card';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -25,8 +25,9 @@ import {
 import { Media, MediaModel } from '../../core/models/media.model';
 import { MetadataService, EntityInfo } from '../../core/services/meta-data.service';
 import { AuthenticationService } from '../../core/services/authentication/authentication.service';
-
-
+import { UploadStateService } from '../../core/services/upload-state.service';
+import { UploadOverlayComponent } from '../../core/components/upload-overlay/upload-overlay.component';
+import { MatExpansionModule } from '@angular/material/expansion';
 @Component({
   standalone: true,
   selector: 'app-generic-form',
@@ -46,24 +47,29 @@ import { AuthenticationService } from '../../core/services/authentication/authen
     MatSlideToggleModule,
     MatIconModule,
     MatDividerModule,
+    MatExpansionModule,
     MatSnackBarModule,
     PreviewDeviceComponent,
     MatTableModule,
     SlButtonComponent,
     SlIconComponent,
-    SlModuleTitleComponent
+    SlModuleTitleComponent,
+    UploadOverlayComponent, // <app-upload-overlay>
   ]
 })
 export class FormsComponent implements OnInit {
   private fb = inject(FormBuilder);
   private snackBar = inject(MatSnackBar);
-  private route = inject(ActivatedRoute);
+  private _route = inject(ActivatedRoute);
   public router = inject(Router);
   private service = inject(CrudService);
   private foreignService = inject(CrudService);
   private http = inject(HttpClient);
   private metadata = inject(MetadataService);
   private auth = inject(AuthenticationService);
+
+  // Overlay uploads
+  upload = inject(UploadStateService);
 
   form: FormGroup | null = null;
   isEditMode = false;
@@ -74,17 +80,28 @@ export class FormsComponent implements OnInit {
 
   daysOfWeek = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY', 'SUNDAY'];
 
-  // Ojo: 'roles' YA NO está excluido para poder pintarlo
   excludedFields: string[] = ['id', 'devices', 'advices', 'users', 'timeRanges'];
 
   public entityPath = '';
   public entityClassName = '';
-  uploading = false;
   previewUrl: string | null = null;
 
   private colorFields = ['primaryColor', 'secondaryColor'];
 
-  // ===================== MAPEOS CANÓNICOS ======================
+  // === Password ===
+  hidePassword = true;
+  passwordStrength = 0; // 0..4
+  get passwordLevelLabel(): string {
+    switch (this.passwordStrength) {
+      case 1: return 'Débil';
+      case 2: return 'Media';
+      case 3: return 'Fuerte';
+      case 4: return 'Muy fuerte';
+      default: return 'Vacía';
+    }
+  }
+
+  // ===================== ENDPOINTS ======================
   private readonly PATH_TO_ENDPOINT: Record<string, string> = {
     'device-types': 'devices/types',
     'media-types': 'medias/types',
@@ -110,15 +127,66 @@ export class FormsComponent implements OnInit {
     Role: 'roles',
     AppVersion: 'app-versions'
   };
-  // ============================================================
+  // =====================================================
+
+  // ===== PROMOTION/LEADS =====
+  promotionId: number | null = null;
+
+  isPromotion(): boolean { return this.entityPath === 'promotion'; }
+
+  leadLimitOptions = [
+    { value: 'NO_LIMIT', label: 'Sin límite' },
+    { value: 'ONE_PER_24H', label: 'Uno cada 24 h' },
+    { value: 'ONE_PER_PERSON', label: 'Uno por persona' },
+  ];
+
+  leadIdentifierOptions = [
+    { value: 'EMAIL', label: 'Email' },
+    { value: 'PHONE', label: 'Teléfono' },
+  ];
+
+  promotionEnumFields = new Set(['leadLimitType', 'leadIdentifierType']);
+
+  leads: Array<{
+    id: number; promotionId: number; firstName?: string; lastName?: string;
+    email?: string; phone?: string; birthDate?: string;
+    acceptedPrivacyAt?: string; acceptedTermsAt?: string;
+    createdAt: string;
+  }> = [];
+  loadingLeads = false;
+
+  // Filtros de rango (por defecto últimos 30 días)
+  leadsFrom = ''; // 'YYYY-MM-DD'
+  leadsTo = '';   // 'YYYY-MM-DD'
+
+  leadSummary: { promotionId: number; totalLeads: number; uniqueIdentifiers: number; leadsByDay: Record<string, number> } | null = null;
+
+  // Lead de prueba
+  testIdentifier = '';
+  generatingLead = false;
+
+  isEmailIdentifier(): boolean {
+    return (this.form?.get('leadIdentifierType')?.value || 'EMAIL') === 'EMAIL';
+  }
+
+  private today_yyyy_mm_dd(): string {
+    const d = new Date();
+    return d.toISOString().slice(0, 10);
+  }
+  private daysAgo_yyyy_mm_dd(days: number): string {
+    const d = new Date(); d.setDate(d.getDate() - days);
+    return d.toISOString().slice(0, 10);
+  }
 
   async ngOnInit(): Promise<void> {
-    const id = this.route.snapshot.paramMap.get('id');
+    const idStr = this._route.snapshot.paramMap.get('id');
+    this.promotionId = idStr ? +idStr : null;
+
     const pathParts = this.router.url.split('/').filter(Boolean);
     this.entityPath = pathParts[0] || '';
     this.entityClassName = this.pathToEntity(this.entityPath);
 
-    // 1) Carga ROLES asignables si estamos en 'user'
+    // ROLES (user)
     if (this.entityPath === 'user') {
       this.foreignService.init('roles/assignable');
       this.foreignService.getAll().subscribe({
@@ -130,7 +198,7 @@ export class FormsComponent implements OnInit {
       });
     }
 
-    // 2) Carga metadatos y datos del recurso
+    // Metadatos + datos
     const withCount = false;
     this.metadata.getEntities(withCount).subscribe({
       next: (entities) => {
@@ -171,11 +239,11 @@ export class FormsComponent implements OnInit {
         }
 
         const endpoint = this.getEndpointFromPath(this.entityPath);
-        this.initEndpointAndLoad(id, endpoint, currentMeta);
+        this.initEndpointAndLoad(idStr, endpoint, currentMeta);
       },
       error: () => {
         const endpoint = this.getEndpointFromPath(this.entityPath);
-        this.initEndpointAndLoad(id, endpoint);
+        this.initEndpointAndLoad(idStr, endpoint);
       }
     });
   }
@@ -194,6 +262,18 @@ export class FormsComponent implements OnInit {
             this.previewUrl = data.logo.src;
           } else if (this.entityPath === 'user' && data?.profileImage?.src) {
             this.previewUrl = data.profileImage.src;
+          } else if (this.entityPath === 'advice' && data?.media?.src) {
+            this.previewUrl = data.media.src;
+          }
+
+          // Si es promoción, cargar leads/summary por defecto (últimos 30 días)
+          if (this.isPromotion()) {
+            this.leadsTo = this.today_yyyy_mm_dd();
+            this.leadsFrom = this.daysAgo_yyyy_mm_dd(30);
+            if (this.promotionId) {
+              this.fetchLeads(this.promotionId);
+              this.fetchLeadSummary(this.promotionId);
+            }
           }
         },
         error: () => {
@@ -234,7 +314,7 @@ export class FormsComponent implements OnInit {
     return /^[A-Z][A-Za-z0-9]*$/.test(t);
   }
 
-  // ===================== RESOLUCIÓN DE ENDPOINTS ======================
+  // ===================== ENDPOINT HELPERS ======================
   private getEndpointFromPath(path: string): string {
     if (this.PATH_TO_ENDPOINT[path]) return this.PATH_TO_ENDPOINT[path];
     return this.ensurePlural(path);
@@ -244,14 +324,49 @@ export class FormsComponent implements OnInit {
     const kebab = this.toKebabCase(entityName);
     return this.ensurePlural(kebab);
   }
-  // ====================================================================
+  // =============================================================
+
+  // --------- TIME HELPERS ---------
+  private toHHmm(v?: string | null): string {
+    if (!v) return '';
+    const s = String(v).trim();
+    if (/^\d{2}:\d{2}:\d{2}$/.test(s)) return s.slice(0, 5);
+    if (/^\d{2}:\d{2}$/.test(s)) return s;
+    return '';
+  }
+  private toHHmmss(v?: string | null): string | null {
+    if (!v) return null;
+    const s = String(v).trim();
+    if (/^\d{2}:\d{2}:\d{2}$/.test(s)) return s;
+    if (/^\d{2}:\d{2}$/.test(s)) return `${s}:00`;
+    return null;
+  }
+
+  // --------- DATE HELPERS (YYYY-MM-DD) ---------
+  private toDateInput(v: any): string {
+    if (!v) return '';
+    if (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v.trim())) return v.trim();
+    if (v instanceof Date && !isNaN(v.getTime())) return v.toISOString().slice(0, 10);
+    const m = String(v).match(/^(\d{4}-\d{2}-\d{2})/);
+    return m ? m[1] : '';
+  }
+  private toDateOnlyString(v: any): string | null {
+    if (!v) return null;
+    if (typeof v === 'string') {
+      const s = v.trim();
+      return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : null;
+    }
+    if (v instanceof Date && !isNaN(v.getTime())) return v.toISOString().slice(0, 10);
+    return null;
+  }
 
   // --------- Form ---------
 
   isMediaUploader(key: any) {
     return (this.entityPath === 'media' && key.key === 'src')
       || (this.entityPath === 'company' && key.key === 'logo')
-      || (this.entityPath === 'user' && key.key === 'profileImage');
+      || (this.entityPath === 'user' && key.key === 'profileImage')
+      || (this.entityPath === 'advice' && key.key === 'media');
   }
 
   private sanitizeModelWithIdRelations(model: any): any {
@@ -270,20 +385,13 @@ export class FormsComponent implements OnInit {
   }
 
   buildForm(model: any) {
-    const toTimeString = (arr: [number, number] | undefined): string => {
-      if (!arr || arr.length !== 2) return '';
-      const [h, m] = arr;
-      const pad = (n: number) => n.toString().padStart(2, '0');
-      return `${pad(h)}:${pad(m)}`;
-    };
-
     const group: Record<string, any> = {};
     model = this.sanitizeModelWithIdRelations(model);
 
     for (const key of Object.keys(model).filter(arr => !this.excludedFields.includes(arr))) {
       if (key === 'id') continue;
+      if (key === 'password') continue;
 
-      // roles: acepta array de strings u objetos
       if (key === 'roles') {
         const arr = Array.isArray(model.roles) ? model.roles : [];
         group[key] = [arr];
@@ -295,11 +403,13 @@ export class FormsComponent implements OnInit {
           (model.visibilityRules || []).map((rule: any) =>
             this.fb.group({
               day: [rule.day],
+              startDate: [this.toDateInput(rule.startDate)],
+              endDate: [this.toDateInput(rule.endDate)],
               timeRanges: this.fb.array(
                 (rule.timeRanges || []).map((t: any) =>
                   this.fb.group({
-                    fromTime: [toTimeString(t.fromTime)],
-                    toTime: [toTimeString(t.toTime)]
+                    fromTime: [this.toHHmm(t.fromTime)],
+                    toTime: [this.toHHmm(t.toTime)]
                   })
                 )
               )
@@ -334,8 +444,34 @@ export class FormsComponent implements OnInit {
       }
     }
 
+    // Asegurar control para Promotion (en caso de alta)
+    if (this.isPromotion()) {
+      if (!('leadLimitType' in group)) group['leadLimitType'] = ['NO_LIMIT'];
+      if (!('leadIdentifierType' in group)) group['leadIdentifierType'] = ['EMAIL'];
+    }
+
+    // Asegurar FormArray de advice aunque no venga
+    if (this.entityPath === 'advice' && !('visibilityRules' in group)) {
+      group['visibilityRules'] = this.fb.array([]);
+    }
+
     this.form = this.fb.group(group);
     this.rehydrateRoles();
+
+    if (this.entityPath === 'user') {
+      this.form.addControl('password', this.fb.control('', this.passwordValidator.bind(this)));
+    }
+
+    if (this.entityPath === 'advice') {
+      this.ensureAllDaysVisibility();
+      this.visibilityRules.controls.forEach((_, idx) => this.normalizeAndMergeRanges(idx));
+    }
+
+    // Defaults explícitos para Promotion en formulario recién creado
+    if (this.isPromotion()) {
+      if (!this.form.get('leadLimitType')) this.form.addControl('leadLimitType', this.fb.control('NO_LIMIT'));
+      if (!this.form.get('leadIdentifierType')) this.form.addControl('leadIdentifierType', this.fb.control('EMAIL'));
+    }
   }
 
   // ---------- Arrays de Advice ----------
@@ -345,20 +481,38 @@ export class FormsComponent implements OnInit {
   getTimeRanges(ruleIndex: number): FormArray {
     return this.visibilityRules.at(ruleIndex).get('timeRanges') as FormArray;
   }
-  addVisibilityRule() {
-    this.visibilityRules.push(this.fb.group({ day: [''], timeRanges: this.fb.array([]) }));
+
+  addRange(dayIdx: number) {
+    this.getTimeRanges(dayIdx).push(this.fb.group({ fromTime: [''], toTime: [''] }));
   }
-  removeVisibilityRule(index: number) {
-    this.visibilityRules.removeAt(index);
-  }
-  addTimeRange(ruleIndex: number) {
-    this.getTimeRanges(ruleIndex).push(this.fb.group({ fromTime: [''], toTime: [''] }));
-  }
-  removeTimeRange(ruleIndex: number, rangeIndex: number) {
-    this.getTimeRanges(ruleIndex).removeAt(rangeIndex);
+  removeRange(dayIdx: number, rangeIdx: number) {
+    this.getTimeRanges(dayIdx).removeAt(rangeIdx);
   }
 
-  /** Rehidrata el control 'roles' con objetos de la lista asignable */
+  copyBuffer: { fromTime: string; toTime: string }[] = [];
+  copyDay(dayIdx: number) {
+    this.copyBuffer = this.getTimeRanges(dayIdx).controls.map(c => ({
+      fromTime: c.get('fromTime')?.value,
+      toTime: c.get('toTime')?.value
+    }));
+  }
+  pasteDay(dayIdx: number) {
+    if (!this.copyBuffer?.length) return;
+    const fa = this.getTimeRanges(dayIdx);
+    while (fa.length) fa.removeAt(0);
+    this.copyBuffer.forEach(r => fa.push(this.fb.group({ fromTime: [r.fromTime], toTime: [r.toTime] })));
+    this.normalizeAndMergeRanges(dayIdx);
+  }
+  clearDay(dayIdx: number) {
+    const fa = this.getTimeRanges(dayIdx);
+    while (fa.length) fa.removeAt(0);
+  }
+  setDay24h(dayIdx: number) {
+    const fa = this.getTimeRanges(dayIdx);
+    while (fa.length) fa.removeAt(0);
+    fa.push(this.fb.group({ fromTime: ['00:00'], toTime: ['23:59'] }));
+  }
+
   private rehydrateRoles() {
     if (!this.form) return;
     const ctrl = this.form.get('roles');
@@ -382,9 +536,8 @@ export class FormsComponent implements OnInit {
 
   // ---------- Guardar ----------
   save() {
-    if (!this.form || this.form.invalid) return;
+    if (!this.form || this.form.invalid || this.upload.isUploading()) return;
 
-    // Normaliza colores
     this.colorFields.forEach(f => {
       if (this.form!.get(f)) {
         const val = this.form!.get(f)!.value;
@@ -393,24 +546,27 @@ export class FormsComponent implements OnInit {
     });
 
     const formValue = this.form.value;
+
+    if (this.entityPath === 'user' && (!formValue.password || !String(formValue.password).trim())) {
+      delete formValue.password;
+    }
+
     const payload: any = this.buildPayloadForBackend(this.entityPath, formValue);
 
     const req = this.isEditMode
-      ? this.service.update({ id: +this.route.snapshot.paramMap.get('id')!, ...payload })
+      ? this.service.update({ id: +this._route.snapshot.paramMap.get('id')!, ...payload })
       : this.service.create(payload);
 
     req.subscribe({
-      next: (saved: any) => {
-        // Si estoy editando MI usuario, refrescar /auth/me (y opcionalmente token)
+      next: () => {
         if (this.entityPath === 'user' && this.isEditMode) {
-          const editedId = +this.route.snapshot.paramMap.get('id')!;
+          const editedId = +this._route.snapshot.paramMap.get('id')!;
           const me = this.auth.getUser();
           const myId = me?.id;
 
           if (myId && editedId === myId) {
             this.auth.refreshMe().subscribe({
               next: () => {
-                // Opcional: refrescar token si tu UI depende de claims del JWT (roles, etc.)
                 this.auth.refreshToken().subscribe({
                   next: () => {
                     this.snackBar.open('Tu sesión se ha actualizado', 'Cerrar', { duration: 2000 });
@@ -423,15 +579,13 @@ export class FormsComponent implements OnInit {
                 });
               },
               error: () => {
-                // Aunque falle /auth/me, navegamos igualmente
                 this.router.navigate(['/' + this.entityPath]);
               }
             });
-            return; // Evita doble navegación
+            return;
           }
         }
 
-        // Flujo normal si no edité mi usuario
         this.snackBar.open('Elemento guardado correctamente', 'Cerrar', { duration: 2000 });
         this.router.navigate(['/' + this.entityPath]);
       },
@@ -445,8 +599,10 @@ export class FormsComponent implements OnInit {
   compareById = (a: any, b: any) => (a?.id ?? a) === (b?.id ?? b);
 
   shouldRenderTextField(key: string): boolean {
+    if (key === 'password') return false;
     if (/Id$/.test(key)) return false;
     if (key === 'roles') return false;
+    if (this.isPromotion() && this.promotionEnumFields.has(key)) return false;
     const isForeign = !!this.foreignEntityLists[key];
     if (isForeign) return false;
     if (this.isColorField(key)) return false;
@@ -454,8 +610,11 @@ export class FormsComponent implements OnInit {
   }
 
   shouldRenderSelectField(key: string): boolean {
+    if (key === 'password') return false;
     if (['src', 'logo', 'profileImage'].includes(key)) return false;
+    if (this.entityPath === 'advice' && key === 'media') return false;
     if (this.entityPath === 'user' && key === 'roles') return false;
+    if (this.isPromotion() && this.promotionEnumFields.has(key)) return false; // UI custom
     return !!this.foreignEntityLists[key];
   }
 
@@ -479,42 +638,50 @@ export class FormsComponent implements OnInit {
     const file = (event.target as HTMLInputElement).files?.[0];
     if (!file || !this.form) return;
 
+    const localId = crypto.randomUUID();
+    this.upload.start(localId, file.name);
+
     const formData = new FormData();
     formData.append('file', file);
-
-    this.uploading = true;
 
     this.service.init('medias');
     this.service.createCustom('upload', formData).subscribe({
       next: res => {
-        const filename = res.filename;
+        const filename = res?.filename;
         if (!filename) {
+          this.upload.fail(localId, 'Respuesta inválida');
           this.snackBar.open('Error: no se recibió el nombre del archivo', 'Cerrar', { duration: 3000 });
-          this.uploading = false;
           this.service.init(this.getEndpointFromPath(this.entityPath));
+          this.upload.clearIfAllDone();
           return;
         }
-        this.pollForCompressedUrl(filename);
+
+        this.upload.update(localId, 100);
+
+        this.pollForCompressedUrl(filename, localId);
       },
       error: () => {
+        this.upload.fail(localId, 'Error al subir');
         this.snackBar.open('Error al subir el archivo', 'Cerrar', { duration: 3000 });
-        this.uploading = false;
         this.service.init(this.getEndpointFromPath(this.entityPath));
+        this.upload.clearIfAllDone();
       }
     });
   }
 
-  pollForCompressedUrl(filename: string, attempts: number = 0) {
+  private pollForCompressedUrl(filename: string, localId: string, attempts: number = 0) {
     if (attempts >= 20) {
+      this.upload.fail(localId, 'Tiempo de espera agotado');
       this.snackBar.open('Tiempo de espera agotado para compresión', 'Cerrar', { duration: 4000 });
-      this.uploading = false;
+      this.service.init(this.getEndpointFromPath(this.entityPath));
+      this.upload.clearIfAllDone();
       return;
     }
 
     this.service.init('medias');
     this.service.getCustom(`status/${filename}`).subscribe({
       next: (res) => {
-        if (res.url) {
+        if (res?.url) {
           if (this.form!.get('logo')) {
             const auxLogo = this.form!.get('logo')?.value;
             const aux: Media = auxLogo ? auxLogo : new MediaModel();
@@ -525,27 +692,35 @@ export class FormsComponent implements OnInit {
             const aux: Media = current ? current : new MediaModel();
             aux.src = res.url;
             this.form!.get('profileImage')?.setValue(aux);
+          } else if (this.form!.get('media')) {
+            const current = this.form!.get('media')?.value;
+            const aux: Media = current ? current : new MediaModel();
+            aux.src = res.url;
+            this.form!.get('media')?.setValue(aux);
           } else {
             this.form!.get('src')?.setValue(res.url);
           }
 
           this.previewUrl = res.url;
           this.snackBar.open('Archivo comprimido listo', 'Cerrar', { duration: 2000 });
-          this.uploading = false;
           this.service.init(this.getEndpointFromPath(this.entityPath));
+
+          this.upload.finish(localId);
+          this.upload.clearIfAllDone();
         } else {
-          setTimeout(() => this.pollForCompressedUrl(filename, attempts + 1), 5000);
+          setTimeout(() => this.pollForCompressedUrl(filename, localId, attempts + 1), 5000);
         }
       },
       error: () => {
+        this.upload.fail(localId, 'Error consultando estado');
         this.snackBar.open('Error consultando estado', 'Cerrar', { duration: 3000 });
-        this.uploading = false;
         this.service.init(this.getEndpointFromPath(this.entityPath));
+        this.upload.clearIfAllDone();
       }
     });
   }
 
-  // ----------------------- Helpers de Color -----------------------
+  // ----------------------- Color -----------------------
   isColorField(field: string): boolean {
     return this.colorFields.includes(field);
   }
@@ -570,7 +745,7 @@ export class FormsComponent implements OnInit {
     return '#000000';
   }
 
-  // ----------------------- Helpers de string/rutas -----------------------
+  // ----------------------- Strings/Rutas -----------------------
   private toKebabCase(name: string): string {
     return name.replace(/([a-z0-9])([A-Z])/g, '$1-$2')
       .replace(/[\s_]+/g, '-')
@@ -585,22 +760,23 @@ export class FormsComponent implements OnInit {
     return path.split('-').filter(Boolean).map(w => w.charAt(0).toUpperCase() + w.slice(1)).join('');
   }
 
-  // ---------- Mapeo payload backend ----------
+  // ---------- Payload backend ----------
   private buildPayloadForBackend(entityPath: string, val: any): any {
     const payload = { ...val };
 
+    // ===== USER =====
     if (entityPath === 'user') {
       const c = payload.company;
       if (c != null) {
         const id = (typeof c === 'number' || typeof c === 'string') ? Number(c) : c?.id;
-        if (id != null) payload.companyId = id;
+        if (!Number.isNaN(id)) payload.companyId = id;
       }
       delete payload.company;
 
       const p = payload.profileImage;
       if (p != null) {
         const pid = (typeof p === 'number' || typeof p === 'string') ? Number(p) : p?.id;
-        if (pid != null) payload.profileImageId = pid;
+        if (!Number.isNaN(pid)) payload.profileImageId = pid;
       }
       delete payload.profileImage;
 
@@ -609,8 +785,310 @@ export class FormsComponent implements OnInit {
       } else {
         payload.roles = [];
       }
+
+      const pwd = (val.password ?? '').toString().trim();
+      if (pwd) payload.password = pwd; else delete payload.password;
+    }
+
+    // ===== ADVICE =====
+    if (entityPath === 'advice') {
+      if (Array.isArray(payload.visibilityRules)) {
+        payload.visibilityRules = payload.visibilityRules.map((rule: any) => ({
+          day: rule.day,
+          startDate: this.toDateOnlyString(rule.startDate),
+          endDate: this.toDateOnlyString(rule.endDate),
+          timeRanges: Array.isArray(rule.timeRanges) ? rule.timeRanges
+            .filter((tr: any) => this.toHHmmss(tr.fromTime) && this.toHHmmss(tr.toTime))
+            .map((tr: any) => ({
+              fromTime: this.toHHmmss(tr.fromTime),
+              toTime: this.toHHmmss(tr.toTime)
+            })) : []
+        }));
+      }
+
+      const m = payload.media;
+      if (m == null) {
+        payload.media = null;
+      } else if (typeof m === 'number' || typeof m === 'string') {
+        const mid = Number(m);
+        payload.media = Number.isFinite(mid) && mid > 0 ? { id: mid } : null;
+      } else if (typeof m === 'object') {
+        if (m.id != null) {
+          const mid = Number(m.id);
+          payload.media = Number.isFinite(mid) && mid > 0 ? { id: mid } : null;
+        } else if (m.src) {
+          payload.media = { src: String(m.src) };
+        } else {
+          payload.media = null;
+        }
+      }
+
+      const pr = payload.promotion;
+      if (pr == null || pr === '' || pr === 0 || pr === '0') {
+        payload.promotion = null;
+      } else if (typeof pr === 'number' || typeof pr === 'string') {
+        const pid = Number(pr);
+        payload.promotion = Number.isFinite(pid) && pid > 0 ? { id: pid } : null;
+      } else if (typeof pr === 'object' && pr.id != null) {
+        const pid = Number(pr.id);
+        payload.promotion = Number.isFinite(pid) && pid > 0 ? { id: pid } : null;
+      } else {
+        payload.promotion = null;
+      }
+
+      const co = payload.company;
+      if (co == null || co === '' || co === 0 || co === '0') {
+        payload.company = null;
+      } else if (typeof co === 'number' || typeof co === 'string') {
+        const cid = Number(co);
+        payload.company = Number.isFinite(cid) && cid > 0 ? { id: cid } : null;
+      } else if (typeof co === 'object' && co.id != null) {
+        const cid = Number(co.id);
+        payload.company = Number.isFinite(cid) && cid > 0 ? { id: cid } : null;
+      } else {
+        payload.company = null;
+      }
+
+      if (payload.customInterval === '') payload.customInterval = null;
+      if (payload.interval === '') payload.interval = null;
+
+      Object.keys(payload).forEach(k => {
+        if (payload[k] === '') payload[k] = null;
+      });
+    }
+
+    // ===== PROMOTION =====
+    if (entityPath === 'promotion') {
+      const ll = (val.leadLimitType || '').toString().trim().toUpperCase();
+      const li = (val.leadIdentifierType || '').toString().trim().toUpperCase();
+      payload.leadLimitType = ['NO_LIMIT', 'ONE_PER_24H', 'ONE_PER_PERSON'].includes(ll) ? ll : 'NO_LIMIT';
+      payload.leadIdentifierType = ['EMAIL', 'PHONE'].includes(li) ? li : 'EMAIL';
     }
 
     return payload;
+  }
+
+  // ======= Password strength =======
+  onPasswordInput() {
+    const pwd = this.form?.get('password')?.value || '';
+    this.passwordStrength = this.calculatePasswordStrength(pwd);
+    this.form?.get('password')?.updateValueAndValidity({ emitEvent: false });
+  }
+
+  private calculatePasswordStrength(pwd: string): number {
+    if (!pwd) return 0;
+    let score = 0;
+    if (pwd.length >= 8) score++;
+    if (pwd.length >= 12) score++;
+    const hasLower = /[a-z]/.test(pwd);
+    const hasUpper = /[A-Z]/.test(pwd);
+    const hasNumber = /\d/.test(pwd);
+    const hasSymbol = /[^A-Za-z0-9]/.test(pwd);
+    const variety = [hasLower, hasUpper, hasNumber, hasSymbol].filter(Boolean).length;
+    if (variety >= 2) score++;
+    if (variety >= 3) score++;
+    return Math.max(0, Math.min(4, score));
+  }
+
+  private passwordValidator(control: AbstractControl): ValidationErrors | null {
+    const val: string = (control.value || '').trim();
+    if (!val) return null;
+    const strength = this.calculatePasswordStrength(val);
+    return (strength >= 2) ? null : { weakPassword: true };
+  }
+
+  // ======= Tiempo y solapes (Advice) =======
+  private isCompleteTime(t: string): boolean {
+    return /^\d{2}:\d{2}$/.test(t || '');
+  }
+
+  private isValidRangeStr(from: string, to: string): boolean {
+    if (!this.isCompleteTime(from) || !this.isCompleteTime(to)) return false;
+    const f = this.timeToMinutes(from);
+    const t = this.timeToMinutes(to);
+    return f >= 0 && t >= 0 && f < t;
+  }
+
+  private hasIncompleteOrInvalidRanges(dayIdx: number): boolean {
+    const fa = this.getTimeRanges(dayIdx);
+    return fa.controls.some(g => {
+      const from = g.get('fromTime')?.value || '';
+      const to = g.get('toTime')?.value || '';
+      return !this.isValidRangeStr(from, to);
+    });
+  }
+
+  onTimeFieldBlur(dayIdx: number) {
+    if (this.hasIncompleteOrInvalidRanges(dayIdx)) return;
+    this.normalizeAndMergeRanges(dayIdx);
+  }
+
+  private timeToMinutes(t: string): number {
+    if (!t) return -1;
+    const [h, m] = t.split(':').map(Number);
+    if (isNaN(h) || isNaN(m)) return -1;
+    return h * 60 + m;
+  }
+  private minutesToTime(min: number): string {
+    const h = Math.floor(min / 60);
+    const m = min % 60;
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${pad(h)}:${pad(m)}`;
+  }
+
+  private normalizeAndMergeRanges(dayIdx: number) {
+    const rangesFA = this.getTimeRanges(dayIdx);
+    const ranges = rangesFA.controls
+      .map(g => ({
+        from: this.timeToMinutes(g.get('fromTime')?.value),
+        to: this.timeToMinutes(g.get('toTime')?.value)
+      }))
+      .filter(r => r.from >= 0 && r.to >= 0 && r.from < r.to)
+      .sort((a, b) => a.from - b.from);
+
+    const merged: { from: number; to: number }[] = [];
+    for (const r of ranges) {
+      const last = merged[merged.length - 1];
+      if (!last || r.from > last.to) merged.push({ ...r });
+      else last.to = Math.max(last.to, r.to);
+    }
+
+    while (rangesFA.length) rangesFA.removeAt(0, { emitEvent: false });
+    merged.forEach(r => rangesFA.push(this.fb.group({
+      fromTime: [this.minutesToTime(r.from)],
+      toTime: [this.minutesToTime(r.to)]
+    }), { emitEvent: false }));
+  }
+
+  private ensureAllDaysVisibility() {
+    if (this.entityPath !== 'advice') return;
+    const order = this.daysOfWeek;
+    const fa = this.visibilityRules;
+    const existingDays = new Set(fa.controls.map(c => c.get('day')?.value));
+
+    order.forEach(d => {
+      if (!existingDays.has(d)) {
+        fa.push(this.fb.group({
+          day: [d],
+          startDate: [''],
+          endDate: [''],
+          timeRanges: this.fb.array([])
+        }));
+      }
+    });
+
+    const sorted = [...fa.controls].sort((a, b) =>
+      order.indexOf(a.get('day')?.value) - order.indexOf(b.get('day')?.value)
+    );
+    while (fa.length) fa.removeAt(0);
+    sorted.forEach(c => fa.push(c));
+  }
+
+  // ====== Promotion: Leads/Export/Resumen ======
+  private promotionEndpoint(id: number, path: string = ''): string {
+    const base = this.getEndpointFromPath('promotion'); // 'promotions'
+    return path ? `${base}/${id}/${path}` : `${base}/${id}`;
+  }
+
+  fetchLeads(promotionId: number) {
+    this.loadingLeads = true;
+    this.service.init(this.getEndpointFromPath('promotion'));
+    this.service.getCustom(`${promotionId}/leads`).subscribe({
+      next: (data: any[]) => {
+        const from = this.leadsFrom ? new Date(this.leadsFrom + 'T00:00:00') : null;
+        const to = this.leadsTo ? new Date(this.leadsTo + 'T23:59:59') : null;
+
+        this.leads = (data ?? []).filter(l => {
+          const raw = l.createdAt ?? l.created_at ?? l.created_at_z ?? l.created_at_utc ?? l.created_at_iso ?? l.created_at_local ?? '';
+          const dt = raw ? new Date(raw) : null;
+          if (!dt || isNaN(dt.getTime())) return true;
+          if (from && dt < from) return false;
+          if (to && dt > to) return false;
+          return true;
+        });
+        this.loadingLeads = false;
+      },
+      error: () => {
+        this.loadingLeads = false;
+        this.snackBar.open('No se pudieron cargar los leads', 'Cerrar', { duration: 2500 });
+      }
+    });
+  }
+
+  fetchLeadSummary(promotionId: number) {
+    const qs: string[] = [];
+    if (this.leadsFrom) qs.push(`from=${encodeURIComponent(this.leadsFrom)}`);
+    if (this.leadsTo) qs.push(`to=${encodeURIComponent(this.leadsTo)}`);
+    const url = `${this.promotionEndpoint(promotionId, 'leads/summary')}${qs.length ? '?' + qs.join('&') : ''}`;
+
+    this.service.init(this.getEndpointFromPath('promotion'));
+    this.service.getCustom(url).subscribe({
+      next: (data) => this.leadSummary = data,
+      error: () => this.leadSummary = null
+    });
+  }
+
+  exportLeadsCsv(promotionId: number) {
+    const qs: string[] = [];
+    if (this.leadsFrom) qs.push(`from=${encodeURIComponent(this.leadsFrom)}`);
+    if (this.leadsTo) qs.push(`to=${encodeURIComponent(this.leadsTo)}`);
+
+    this.service.init('promotions');
+    this.service.getCustom(`${this.promotionId}/leads/export.csv${qs.length ? '?' + qs.join('&') : ''}`, {
+      responseType: 'blob',                           // 👈 clave
+      headers: { Accept: 'text/csv' }                 // (opcional) ayuda a proxies/interceptores
+    }).subscribe({
+      next: (csv: string) => {
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = `promotion-${promotionId}-leads.csv`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(a.href);
+        this.snackBar.open('CSV exportado', 'Cerrar', { duration: 1500 });
+      },
+      error: (e: any) => {
+        console.log("Error exportando CSV", e);
+        this.snackBar.open('Error exportando CSV', 'Cerrar', { duration: 2500 })
+      }
+    });
+  }
+
+  applyLeadFilters() {
+    if (!this.promotionId) return;
+    this.fetchLeads(this.promotionId);
+    this.fetchLeadSummary(this.promotionId);
+  }
+
+  // === Lead de prueba ===
+  generateTestLead() {
+    if (!this.promotionId) return;
+    this.generatingLead = true;
+
+    const body: any = {};
+    const idType = this.isEmailIdentifier() ? 'email' : 'phone';
+    if (this.testIdentifier && this.testIdentifier.trim()) {
+      body[idType] = this.testIdentifier.trim();
+    }
+
+    this.service.init('promotions');
+    this.service.createCustom(`${this.promotionId}/leads/test`, body).subscribe({
+      next: () => {
+        this.snackBar.open('Lead de prueba creado', 'Cerrar', { duration: 1500 });
+        this.fetchLeads(this.promotionId!);
+        this.fetchLeadSummary(this.promotionId!);
+        this.generatingLead = false;
+      },
+      error: (err) => {
+        const msg = err?.error?.error || 'No se pudo crear el lead';
+        this.snackBar.open(msg, 'Cerrar', { duration: 3000 });
+        this.generatingLead = false;
+      }
+    });
+  }
+  get leadCount(): number {
+    return (this.leadSummary?.totalLeads ?? this.leads?.length ?? 0);
   }
 }

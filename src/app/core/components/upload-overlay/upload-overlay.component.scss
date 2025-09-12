@@ -1,0 +1,65 @@
+.overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, .45);
+    display: grid;
+    place-items: center;
+    z-index: 10000;
+    backdrop-filter: blur(2px);
+}
+
+.panel {
+    width: min(680px, 92vw);
+    background: #121212;
+    color: #fff;
+    border-radius: 16px;
+    padding: 20px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, .45);
+}
+
+.header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 600;
+    margin-bottom: 12px;
+}
+
+.list {
+    list-style: none;
+    margin: 12px 0 0;
+    padding: 0;
+    max-height: 260px;
+    overflow: auto;
+}
+
+.row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.name {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.pct {
+    font-variant-numeric: tabular-nums;
+    opacity: .85;
+}
+
+.error {
+    color: #ff8181;
+    font-size: 12px;
+    margin-top: 4px;
+}
+
+.note {
+    font-size: 12px;
+    opacity: .75;
+    margin-top: 12px;
+}

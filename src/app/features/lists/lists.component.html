@@ -73,7 +73,15 @@
             </a>
             <ng-template #noLogoTpl>—</ng-template>
           </div>
-
+          <div *ngSwitchCase="'media'" class="cell--media">
+            <ng-container *ngIf="row?.media?.src as s; else noMediaTpl">
+              <a [href]="s" target="_blank" rel="noopener">
+                <img class="media-thumb" [src]="thumbFromSrc(s) || s" alt="Media" loading="lazy"
+                  referrerpolicy="no-referrer" />
+              </a>
+            </ng-container>
+            <ng-template #noMediaTpl>—</ng-template>
+          </div>
           <!-- Otros campos: si hay link relacional, conviértelo en <a>.
                (El link puede llevarte al edit de otra entidad; si quieres
                bloquear navegación sin permiso, haz que linkForCell() devuelva null en ese caso.) -->

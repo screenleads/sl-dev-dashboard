@@ -38,7 +38,9 @@ export class AppLayoutComponent implements OnInit {
 
   excludedEntityNames: string[] = [
     'AdviceVisibilityRule',
-    'TimeRange'
+    'TimeRange',
+    'Media',
+    'Promotion'
   ];
 
   private routeMap: Record<string, string> = {

@@ -621,6 +621,66 @@ export class ListsComponent implements OnDestroy {
     // extensiones más comunes que ya usas en Media
     return u.endsWith('.mp4') || u.endsWith('.webm') || u.endsWith('.mov');
   }
+  public thumbFromSrc(src: string, size = 320): string | null {
+    if (!src) return null;
+
+    try {
+      // Soporta https://storage.googleapis.com/... y firebasestorage.app
+      const url = new URL(src);
+      const path = url.pathname; // p.ej. /screenleads.../media/videos/compressed-<base>.mp4
+
+      // Vídeo: /media/videos/compressed-<base>.mp4  -> /media/videos/thumbnails/{size}/thumb-{size}-<base>.jpg
+      const mVid = path.match(/\/media\/videos\/compressed-([^\/]+)\.(mp4|mov|webm)$/i);
+      if (mVid) {
+        const base = mVid[1];
+        url.pathname = path.replace(
+          /\/media\/videos\/compressed-[^\/]+\.(mp4|mov|webm)$/i,
+          `/media/videos/thumbnails/${size}/thumb-${size}-${base}.jpg`
+        );
+        return url.toString();
+      }
+
+      // Imagen: /media/images/compressed-<base>.(jpg|png|webp|avif|jpeg) ->
+      //         /media/images/thumbnails/{size}/thumb-{size}-<base>.(misma extensión si existe, por compatibilidad usa jpg si no estás seguro)
+      const mImg = path.match(/\/media\/images\/compressed-([^\/]+)\.(jpg|jpeg|png|webp|avif)$/i);
+      if (mImg) {
+        const base = mImg[1];
+        const ext = mImg[2].toLowerCase(); // tu función de status contempla jpg/png, aquí mantenemos la extensión original cuando sea lógico
+        const thumbExt = (ext === 'png') ? 'png' : 'jpg'; // si quieres forzar jpg siempre, pon 'jpg'
+        url.pathname = path.replace(
+          /\/media\/images\/compressed-[^\/]+\.(jpg|jpeg|png|webp|avif)$/i,
+          `/media/images/thumbnails/${size}/thumb-${size}-${base}.${thumbExt}`
+        );
+        return url.toString();
+      }
+
+      // Compatibilidad legacy: /media/compressed-<base>.<ext>
+      const mLegacy = path.match(/\/media\/compressed-([^\/]+)\.(mp4|mov|webm|jpg|jpeg|png|webp|avif)$/i);
+      if (mLegacy) {
+        const base = mLegacy[1];
+        const ext = mLegacy[2].toLowerCase();
+        const isVideo = /(mp4|mov|webm)/i.test(ext);
+        if (isVideo) {
+          url.pathname = path.replace(
+            /\/media\/compressed-[^\/]+\.(mp4|mov|webm)$/i,
+            `/media/videos/thumbnails/${size}/thumb-${size}-${base}.jpg`
+          );
+        } else {
+          const thumbExt = (ext === 'png') ? 'png' : 'jpg';
+          url.pathname = path.replace(
+            /\/media\/compressed-[^\/]+\.(jpg|jpeg|png|webp|avif)$/i,
+            `/media/images/thumbnails/${size}/thumb-${size}-${base}.${thumbExt}`
+          );
+        }
+        return url.toString();
+      }
+
+      // Si no coincide ningún patrón conocido, devolvemos null para que se use el src original.
+      return null;
+    } catch {
+      return null;
+    }
+  }
 
 
 }

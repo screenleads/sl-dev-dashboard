@@ -1,3 +1,6 @@
+<!-- Overlay global reutilizable (se muestra automáticamente leyendo UploadStateService) -->
+<app-upload-overlay></app-upload-overlay>
+
 <mat-card *ngIf="form">
   <div style="display: flex; gap: 24px;">
 
@@ -11,175 +14,246 @@
 
         <!-- Campos principales en filas individuales -->
         <div *ngFor="let key of form?.controls | keyvalue">
-
-          <!-- Campo de subida para Media.src, Company.logo o User.profileImage -->
-          <div *ngIf="isMediaUploader(key)">
-            <label>Archivo multimedia</label>
-            <input type="file" (change)="uploadFile($event)" accept="image/*,video/*" />
-
-            <div *ngIf="previewUrl" style="margin-top: 12px;">
-              <img
-                *ngIf="previewUrl.endsWith('.jpg') || previewUrl.endsWith('.jpeg') || previewUrl.endsWith('.png') || previewUrl.endsWith('.webp')"
-                [src]="previewUrl" width="200" />
-              <video *ngIf="previewUrl.endsWith('.mp4') || previewUrl.endsWith('.webm') || previewUrl.endsWith('.mov')"
-                [src]="previewUrl" width="200" controls></video>
+          <ng-container *ngIf="key.key !== 'password'">
+            <!-- Uploader -->
+            <div *ngIf="isMediaUploader(key)">
+              <label>Archivo multimedia</label>
+              <input type="file" (change)="uploadFile($event)" accept="image/*,video/*"
+                [disabled]="upload.isUploading()" />
+              <div *ngIf="previewUrl || (entityPath === 'advice' && form.get('media')?.value?.src)"
+                style="margin-top: 12px;">
+                <img
+                  *ngIf="(previewUrl || form.get('media')?.value?.src) && ( (previewUrl || form.get('media')?.value?.src).endsWith('.jpg') || (previewUrl || form.get('media')?.value?.src).endsWith('.jpeg') || (previewUrl || form.get('media')?.value?.src).endsWith('.png') || (previewUrl || form.get('media')?.value?.src).endsWith('.webp') )"
+                  [src]="previewUrl || form.get('media')?.value?.src" width="200" />
+                <video
+                  *ngIf="(previewUrl || form.get('media')?.value?.src) && ( (previewUrl || form.get('media')?.value?.src).endsWith('.mp4') || (previewUrl || form.get('media')?.value?.src).endsWith('.webm') || (previewUrl || form.get('media')?.value?.src).endsWith('.mov') )"
+                  [src]="previewUrl || form.get('media')?.value?.src" width="200" controls></video>
+              </div>
             </div>
-          </div>
 
-          <!-- Campo de color para primaryColor / secondaryColor -->
-          <div *ngIf="isColorField(key.key)" class="full-width" style="margin-bottom: 12px;">
-            <label class="mat-body-1" style="display:block; margin-bottom: 6px;">
-              {{ key.key | titlecase }}
-            </label>
+            <!-- Colores -->
+            <div *ngIf="isColorField(key.key)" class="full-width" style="margin-bottom: 12px;">
+              <label class="mat-body-1" style="display:block; margin-bottom: 6px;">
+                {{ key.key | titlecase }}
+              </label>
 
-            <div style="display:flex; align-items:center; gap: 8px;">
-              <!-- Input nativo de color -->
-              <input type="color" [value]="form.get(key.key)?.value || '#000000'"
-                (input)="onColorInputChange(key.key, $event)"
-                style="width: 56px; height: 40px; border: none; background: transparent; padding: 0; cursor: pointer;" />
+              <div style="display:flex; align-items:center; gap: 8px;">
+                <input type="color" [value]="form.get(key.key)?.value || '#000000'"
+                  (input)="onColorInputChange(key.key, $event)" [disabled]="upload.isUploading()"
+                  style="width: 56px; height: 40px; border: none; background: transparent; padding: 0; cursor: pointer;" />
 
-              <!-- Campo de texto para ver/editar el HEX -->
-              <mat-form-field appearance="outline" style="flex:1;">
-                <mat-label>{{ key.key | titlecase }} (HEX)</mat-label>
-                <input matInput [value]="form.get(key.key)?.value || ''" (input)="onColorTextChange(key.key, $event)"
-                  placeholder="#RRGGBB" autocomplete="on" [attr.name]="key.key" autocapitalize="off"
-                  spellcheck="false" />
-              </mat-form-field>
+                <mat-form-field appearance="outline" style="flex:1;">
+                  <mat-label>{{ key.key | titlecase }} (HEX)</mat-label>
+                  <input matInput [value]="form.get(key.key)?.value || ''" (input)="onColorTextChange(key.key, $event)"
+                    [disabled]="upload.isUploading()" placeholder="#RRGGBB" autocomplete="on" [attr.name]="key.key"
+                    autocapitalize="off" spellcheck="false" />
+                </mat-form-field>
+              </div>
             </div>
-          </div>
 
-          <!-- Multi-select específico para User.roles -->
-          <mat-form-field *ngIf="entityPath === 'user' && key.key === 'roles'" appearance="outline" class="full-width"
-            style="margin-bottom: 12px;">
-            <mat-label>Roles</mat-label>
-            <mat-select [formControlName]="key.key" multiple [compareWith]="compareById" name="roles">
-              <mat-option *ngFor="let option of foreignEntityLists['roles'] ?? []" [value]="option">
-                {{ option.role }} (nivel {{ option.level }})
-              </mat-option>
-            </mat-select>
-          </mat-form-field>
+            <!-- Roles (user) -->
+            <mat-form-field *ngIf="entityPath === 'user' && key.key === 'roles'" appearance="outline" class="full-width"
+              style="margin-bottom: 12px;">
+              <mat-label>Roles</mat-label>
+              <mat-select [formControlName]="key.key" multiple [compareWith]="compareById" name="roles"
+                [disabled]="upload.isUploading()">
+                <mat-option *ngFor="let option of foreignEntityLists['roles'] ?? []" [value]="option">
+                  {{ option.role }} (nivel {{ option.level }})
+                </mat-option>
+              </mat-select>
+            </mat-form-field>
 
-          <!-- Chips informativos (opcional) -->
-          <div *ngIf="entityPath === 'user' && key.key === 'roles' && form?.get('roles')?.value?.length"
-            style="display:flex; gap:8px; flex-wrap: wrap; margin-bottom: 8px;">
-            <span *ngFor="let r of form?.get('roles')?.value"
-              style="padding: 4px 8px; border-radius: 12px; background: #f2f4f7; font-size: 12px;">
-              {{ (r?.role || r) }}
-            </span>
-          </div>
+            <div *ngIf="entityPath === 'user' && key.key === 'roles' && form?.get('roles')?.value?.length"
+              style="display:flex; gap:8px; flex-wrap: wrap; margin-bottom: 8px;">
+              <span *ngFor="let r of form?.get('roles')?.value"
+                style="padding: 4px 8px; border-radius: 12px; background: #f2f4f7; font-size: 12px;">
+                {{ (r?.role || r) }}
+              </span>
+            </div>
 
-          <!-- Campo tipo texto (excluye los de color y especiales) -->
-          <mat-form-field *ngIf="shouldRenderTextField(key.key) && !isColorField(key.key)" appearance="outline"
-            class="full-width" style="margin-bottom: 12px;">
-            <mat-label>{{ key.key | titlecase }}</mat-label>
-            <input matInput [formControlName]="key.key" autocomplete="on" [attr.name]="key.key" autocapitalize="off"
-              [attr.inputmode]="(key.key === 'email') ? 'email' : (key.key === 'interval' ? 'numeric' : null)"
-              [type]="(key.key === 'email') ? 'email' : (key.key === 'interval' ? 'number' : 'text')" />
-          </mat-form-field>
+            <!-- Textos -->
+            <mat-form-field *ngIf="shouldRenderTextField(key.key) && !isColorField(key.key)" appearance="outline"
+              class="full-width" style="margin-bottom: 12px;">
+              <mat-label>{{ key.key | titlecase }}</mat-label>
+              <input matInput [formControlName]="key.key" [disabled]="upload.isUploading()" autocomplete="on"
+                [attr.name]="key.key" autocapitalize="off"
+                [attr.inputmode]="(key.key === 'email') ? 'email' : (key.key === 'interval' ? 'numeric' : null)"
+                [type]="(key.key === 'email') ? 'email' : (key.key === 'interval' ? 'number' : 'text')" />
+            </mat-form-field>
 
-          <!-- Campo tipo select para relaciones (foreign) (roles queda excluido) -->
-          <mat-form-field *ngIf="shouldRenderSelectField(key.key)" appearance="outline" class="full-width"
-            style="margin-bottom: 12px;">
-            <mat-label>{{ key.key | titlecase }}</mat-label>
-            <mat-select [formControlName]="key.key" [compareWith]="compareById" [attr.name]="key.key">
-              <mat-option *ngFor="let option of foreignEntityLists[key.key] ?? []" [value]="option">
-                {{ getOptionLabel(option, key.key) }}
-              </mat-option>
-            </mat-select>
-          </mat-form-field>
-
+            <!-- Selects (foreign) -->
+            <mat-form-field *ngIf="shouldRenderSelectField(key.key)" appearance="outline" class="full-width"
+              style="margin-bottom: 12px;">
+              <mat-label>{{ key.key | titlecase }}</mat-label>
+              <mat-select [formControlName]="key.key" [compareWith]="compareById" [attr.name]="key.key"
+                [disabled]="upload.isUploading()">
+                <mat-option *ngFor="let option of foreignEntityLists[key.key] ?? []" [value]="option">
+                  {{ getOptionLabel(option, key.key) }}
+                </mat-option>
+              </mat-select>
+            </mat-form-field>
+          </ng-container>
         </div>
 
-        <!-- Campos específicos para advice (solo toggle, intervalo y reglas) -->
+        <!-- ===== Promotion: UI Reglas de leads ===== -->
+        <ng-container *ngIf="isPromotion()">
+          <div
+            style="display: grid; grid-template-columns: repeat(auto-fit,minmax(240px,1fr)); gap: 12px; margin-bottom: 12px;">
+            <mat-form-field appearance="outline">
+              <mat-label>Límite por persona</mat-label>
+              <mat-select formControlName="leadLimitType" [disabled]="upload.isUploading()">
+                <mat-option *ngFor="let opt of leadLimitOptions" [value]="opt.value">{{ opt.label }}</mat-option>
+              </mat-select>
+              <mat-hint>Sin límite, 1 cada 24 h o 1 total por persona.</mat-hint>
+            </mat-form-field>
+
+            <mat-form-field appearance="outline">
+              <mat-label>Identificador del lead</mat-label>
+              <mat-select formControlName="leadIdentifierType" [disabled]="upload.isUploading()">
+                <mat-option *ngFor="let opt of leadIdentifierOptions" [value]="opt.value">{{ opt.label }}</mat-option>
+              </mat-select>
+              <mat-hint>Email o Teléfono como clave única.</mat-hint>
+            </mat-form-field>
+          </div>
+        </ng-container>
+
+        <!-- Contraseña (user) -->
+        <ng-container *ngIf="entityPath === 'user'">
+          <mat-form-field appearance="outline" class="full-width" style="margin-bottom: 12px;">
+            <mat-label>Contraseña</mat-label>
+            <input matInput [type]="hidePassword ? 'password' : 'text'" formControlName="password"
+              [disabled]="upload.isUploading()" placeholder="Cambiar contraseña" autocomplete="new-password"
+              [attr.name]="'new-password'" autocapitalize="off" spellcheck="false" (input)="onPasswordInput()" />
+            <button mat-icon-button matSuffix type="button" (click)="hidePassword = !hidePassword"
+              [disabled]="upload.isUploading()"
+              [attr.aria-label]="hidePassword ? 'Mostrar contraseña' : 'Ocultar contraseña'"
+              [attr.title]="hidePassword ? 'Mostrar contraseña' : 'Ocultar contraseña'">
+              <mat-icon>{{ hidePassword ? 'visibility' : 'visibility_off' }}</mat-icon>
+            </button>
+
+            <mat-hint *ngIf="form?.get('password')?.value">
+              Fuerza: {{ passwordLevelLabel }}
+            </mat-hint>
+            <mat-error *ngIf="form?.get('password')?.hasError('weakPassword')">
+              La contraseña es débil. Usa mínimo 8 caracteres combinando mayúsculas, minúsculas, números y símbolos.
+            </mat-error>
+          </mat-form-field>
+
+          <div class="pwd-strength" *ngIf="form?.get('password')?.value">
+            <div class="pwd-seg" [class.active]="passwordStrength >= 1"></div>
+            <div class="pwd-seg" [class.active]="passwordStrength >= 2"></div>
+            <div class="pwd-seg" [class.active]="passwordStrength >= 3"></div>
+            <div class="pwd-seg" [class.active]="passwordStrength >= 4"></div>
+          </div>
+        </ng-container>
+
+        <!-- Advice -->
         <ng-container *ngIf="entityPath === 'advice'">
 
           <mat-slide-toggle *ngIf="form.get('customInterval')" formControlName="customInterval"
-            style="margin-bottom: 8px;">
+            [disabled]="upload.isUploading()" style="margin-bottom: 8px;">
             Intervalo personalizado
           </mat-slide-toggle>
 
           <mat-form-field appearance="outline" class="full-width" style="margin-bottom: 16px;"
             *ngIf="form.get('interval') && form.get('customInterval')?.value">
             <mat-label>Intervalo (segundos)</mat-label>
-            <input matInput type="number" formControlName="interval" inputmode="numeric" autocomplete="on"
-              name="interval" />
+            <input matInput type="number" formControlName="interval" [disabled]="upload.isUploading()"
+              inputmode="numeric" autocomplete="on" name="interval" />
           </mat-form-field>
 
           <!-- Reglas de Visibilidad -->
           <div formArrayName="visibilityRules" style="margin-bottom: 16px;">
             <h3 style="margin-bottom: 8px;">Reglas de Visibilidad</h3>
-            <button mat-mini-fab color="primary" type="button" (click)="addVisibilityRule()"
-              style="margin-bottom: 12px;">
-              <mat-icon>add</mat-icon>
-            </button>
 
-            <table style="width: 100%; border-collapse: collapse;">
-              <thead>
-                <tr>
-                  <th style="padding: 8px;">Día</th>
-                  <th style="padding: 8px;">Acciones</th>
-                </tr>
-              </thead>
-              <tbody>
-                <ng-container *ngFor="let rule of visibilityRules.controls; let i = index" [formGroupName]="i">
-                  <tr>
-                    <td style="padding: 8px;">
-                      <mat-form-field appearance="outline" style="width: 150px;">
-                        <mat-label>Día</mat-label>
-                        <mat-select formControlName="day" [attr.name]="'day-' + i">
-                          <mat-option *ngFor="let day of daysOfWeek" [value]="day">{{ day }}</mat-option>
-                        </mat-select>
+            <div style="display:grid; grid-template-columns: repeat(auto-fill,minmax(280px,1fr)); gap:12px;">
+              <ng-container *ngFor="let rule of visibilityRules.controls; let i = index" [formGroupName]="i">
+                <mat-card style="padding:12px;">
+                  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                    <strong>{{ visibilityRules.at(i).get('day')?.value }}</strong>
+                    <div style="display:flex; gap:6px;">
+                      <button mat-icon-button type="button" (click)="copyDay(i)" [disabled]="upload.isUploading()"
+                        aria-label="Copiar">
+                        <mat-icon>content_copy</mat-icon>
+                      </button>
+                      <button mat-icon-button type="button" (click)="pasteDay(i)" [disabled]="upload.isUploading()"
+                        aria-label="Pegar">
+                        <mat-icon>content_paste</mat-icon>
+                      </button>
+                    </div>
+                  </div>
+
+                  <!-- Lista de rangos -->
+                  <div formArrayName="timeRanges">
+                    <div *ngFor="let range of getTimeRanges(i).controls; let j = index" [formGroupName]="j"
+                      style="display:flex; gap:8px; align-items:center; margin-bottom:6px;">
+                      <mat-form-field appearance="outline" style="width:120px;">
+                        <mat-label>Desde</mat-label>
+                        <input matInput type="time" formControlName="fromTime" (blur)="onTimeFieldBlur(i)"
+                          [disabled]="upload.isUploading()" autocomplete="on" [attr.name]="'fromTime-' + i + '-' + j"
+                          step="1" />
                       </mat-form-field>
-                    </td>
-                    <td>
-                      <button mat-icon-button color="warn" (click)="removeVisibilityRule(i)" type="button">
+                      <mat-form-field appearance="outline" style="width:120px;">
+                        <mat-label>Hasta</mat-label>
+                        <input matInput type="time" formControlName="toTime" (blur)="onTimeFieldBlur(i)"
+                          [disabled]="upload.isUploading()" autocomplete="on" [attr.name]="'toTime-' + i + '-' + j"
+                          step="1" />
+                      </mat-form-field>
+                      <button mat-icon-button color="warn" type="button" (click)="removeRange(i, j)"
+                        [disabled]="upload.isUploading()">
                         <mat-icon>delete</mat-icon>
                       </button>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td colspan="2" style="padding-left: 32px;">
-                      <div formArrayName="timeRanges">
-                        <table style="width: 100%;">
-                          <thead>
-                            <tr>
-                              <th style="padding: 4px;">Desde</th>
-                              <th style="padding: 4px;">Hasta</th>
-                              <th></th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            <tr *ngFor="let range of getTimeRanges(i).controls; let j = index" [formGroupName]="j">
-                              <td style="padding-right: 8px;">
-                                <mat-form-field appearance="outline" style="width: 120px; margin-bottom: 4px;">
-                                  <input matInput type="time" formControlName="fromTime" autocomplete="on"
-                                    [attr.name]="'fromTime-' + i + '-' + j" />
-                                </mat-form-field>
-                              </td>
-                              <td style="padding-right: 8px;">
-                                <mat-form-field appearance="outline" style="width: 120px; margin-bottom: 4px;">
-                                  <input matInput type="time" formControlName="toTime" autocomplete="on"
-                                    [attr.name]="'toTime-' + i + '-' + j" />
-                                </mat-form-field>
-                              </td>
-                              <td>
-                                <button mat-icon-button color="warn" (click)="removeTimeRange(i, j)" type="button">
-                                  <mat-icon>delete</mat-icon>
-                                </button>
-                              </td>
-                            </tr>
-                          </tbody>
-                        </table>
-                        <button mat-mini-fab color="primary" (click)="addTimeRange(i)" type="button"
-                          style="margin-top: 4px;">
-                          <mat-icon>add</mat-icon>
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                </ng-container>
-              </tbody>
-            </table>
+                    </div>
+
+                    <!-- Chips resumen -->
+                    <div *ngIf="getTimeRanges(i).length"
+                      style="display:flex; gap:6px; flex-wrap:wrap; margin:6px 0 8px;">
+                      <span *ngFor="let r of getTimeRanges(i).controls"
+                        style="padding:4px 8px; border-radius:12px; background:#eef2f6; font-size:12px;">
+                        {{ r.get('fromTime')?.value }}–{{ r.get('toTime')?.value }}
+                      </span>
+                    </div>
+                  </div>
+
+                  <!-- Rango de fechas (opcional) -->
+                  <div style="display:flex; gap:8px; margin:8px 0;">
+                    <mat-form-field appearance="outline" style="flex:1;">
+                      <mat-label>Desde (fecha)</mat-label>
+                      <input matInput type="date" formControlName="startDate" [disabled]="upload.isUploading()"
+                        [attr.name]="'startDate-' + i" />
+                      <mat-hint>Opcional</mat-hint>
+                    </mat-form-field>
+
+                    <mat-form-field appearance="outline" style="flex:1;">
+                      <mat-label>Hasta (fecha)</mat-label>
+                      <input matInput type="date" formControlName="endDate" [disabled]="upload.isUploading()"
+                        [attr.name]="'endDate-' + i" />
+                      <mat-hint>Opcional</mat-hint>
+                    </mat-form-field>
+                  </div>
+
+                  <!-- Resumen de fechas -->
+                  <div
+                    *ngIf="visibilityRules.at(i).get('startDate')?.value || visibilityRules.at(i).get('endDate')?.value"
+                    style="display:flex; gap:6px; flex-wrap:wrap; margin:6px 0 8px;">
+                    <span style="padding:4px 8px; border-radius:12px; background:#eef2f6; font-size:12px;">
+                      {{ visibilityRules.at(i).get('startDate')?.value || '—' }} → {{
+                      visibilityRules.at(i).get('endDate')?.value || '—' }}
+                    </span>
+                  </div>
+
+                  <!-- Acciones del día -->
+                  <div style="display:flex; flex-wrap:wrap; gap:6px; margin-top:8px;">
+                    <button mat-stroked-button type="button" (click)="addRange(i)" [disabled]="upload.isUploading()">+
+                      Rango</button>
+                    <button mat-stroked-button type="button" (click)="setDay24h(i)" [disabled]="upload.isUploading()">24
+                      h</button>
+                    <button mat-stroked-button color="warn" type="button" (click)="clearDay(i)"
+                      [disabled]="upload.isUploading()">Borrar</button>
+                  </div>
+                </mat-card>
+              </ng-container>
+            </div>
           </div>
         </ng-container>
       </form>
@@ -188,17 +262,17 @@
     <!-- Columna derecha: Vista previa -->
     <div style="flex: 1;background: #465671a3;">
       <div class="preview-panel">
-        <!-- Botones flotantes arriba -->
         <div class="preview-actions">
-          <button sl-button variant="primary" size="medium" color="primary" (click)="save()" [disabled]="form.invalid">
+          <button sl-button variant="primary" size="medium" color="primary" (click)="save()"
+            [disabled]="form.invalid || upload.isUploading()">
             Guardar
           </button>
-          <button sl-button variant="border" size="medium" type="button" (click)="router.navigate(['/' + entityPath])">
+          <button sl-button variant="border" size="medium" type="button" (click)="router.navigate(['/' + entityPath])"
+            [disabled]="upload.isUploading()">
             Cancelar
           </button>
         </div>
 
-        <!-- Vista previa sticky -->
         <app-preview-device *ngIf="entityPath === 'advice' && form?.get('media')?.value?.src" mediaType="video"
           [mediaUrl]="form.get('media')?.value?.src">
         </app-preview-device>
@@ -206,4 +280,102 @@
     </div>
 
   </div>
+
+  <!-- ===== Acordeón de Leads (debajo del principal) ===== -->
+  <ng-container *ngIf="isPromotion() && isEditMode && promotionId">
+    <mat-accordion>
+      <mat-expansion-panel>
+        <mat-expansion-panel-header>
+          <mat-panel-title>Leads</mat-panel-title>
+          <mat-panel-description>{{ leadCount }} registros</mat-panel-description>
+        </mat-expansion-panel-header>
+
+        <!-- Filtros -->
+        <div style="display:flex; gap:8px; flex-wrap: wrap; margin:12px 0 8px;">
+          <mat-form-field appearance="outline" style="flex:1; min-width: 160px;">
+            <mat-label>Desde</mat-label>
+            <input matInput type="date" [(ngModel)]="leadsFrom" name="leadsFrom" />
+          </mat-form-field>
+
+          <mat-form-field appearance="outline" style="flex:1; min-width: 160px;">
+            <mat-label>Hasta</mat-label>
+            <input matInput type="date" [(ngModel)]="leadsTo" name="leadsTo" />
+          </mat-form-field>
+
+          <button mat-stroked-button type="button" (click)="applyLeadFilters()"
+            [disabled]="loadingLeads || upload.isUploading()">Aplicar</button>
+          <button mat-flat-button color="primary" type="button" (click)="exportLeadsCsv(promotionId!)"
+            [disabled]="upload.isUploading()">Exportar CSV</button>
+        </div>
+
+        <!-- Crear lead de prueba -->
+        <div style="display:flex; gap:8px; align-items:flex-end; flex-wrap:wrap; margin-bottom:8px;">
+          <!-- <mat-form-field appearance="outline" style="flex:1; min-width: 220px;">
+            <mat-label>{{ isEmailIdentifier() ? 'Email (opcional)' : 'Teléfono (opcional)' }}</mat-label>
+            <input matInput [type]="isEmailIdentifier() ? 'email' : 'tel'" [(ngModel)]="testIdentifier"
+              [name]="isEmailIdentifier() ? 'testEmail' : 'testPhone'"
+              placeholder="{{ isEmailIdentifier() ? 'p.ej. prueba@example.com' : 'p.ej. 600123456' }}" />
+            <mat-hint>Si lo dejas vacío se genera aleatorio.</mat-hint>
+          </mat-form-field> -->
+
+          <button mat-flat-button color="accent" type="button" (click)="generateTestLead()"
+            [disabled]="generatingLead || upload.isUploading()">
+            {{ generatingLead ? 'Creando...' : 'Lead de prueba' }}
+          </button>
+        </div>
+
+        <!-- KPIs -->
+        <div *ngIf="leadSummary" style="display:flex; gap:12px; flex-wrap:wrap; margin-bottom:8px;">
+          <div style="padding:8px 12px; background:#eef2f6; border-radius:8px; font-size:13px;">
+            <strong>Total:</strong> {{ leadSummary.totalLeads }}
+          </div>
+          <div style="padding:8px 12px; background:#eef2f6; border-radius:8px; font-size:13px;">
+            <strong>Únicos:</strong> {{ leadSummary.uniqueIdentifiers }}
+          </div>
+        </div>
+
+        <!-- Tabla simple -->
+        <div style="max-height: 380px; overflow:auto; border-radius:8px; background:#ffffff18; padding:4px;">
+          <table mat-table [dataSource]="leads" class="mat-elevation-z0" style="min-width:720px;">
+            <ng-container matColumnDef="createdAt">
+              <th mat-header-cell *matHeaderCellDef> Fecha </th>
+              <td mat-cell *matCellDef="let l"> {{ l.createdAt | date:'yyyy-MM-dd HH:mm' }} </td>
+            </ng-container>
+
+            <ng-container matColumnDef="name">
+              <th mat-header-cell *matHeaderCellDef> Nombre </th>
+              <td mat-cell *matCellDef="let l"> {{ l.firstName }} {{ l.lastName }} </td>
+            </ng-container>
+
+            <ng-container matColumnDef="identifier">
+              <th mat-header-cell *matHeaderCellDef> Identificador </th>
+              <td mat-cell *matCellDef="let l"> {{ l.email || l.phone }} </td>
+            </ng-container>
+
+            <ng-container matColumnDef="birthDate">
+              <th mat-header-cell *matHeaderCellDef> Nacimiento </th>
+              <td mat-cell *matCellDef="let l"> {{ l.birthDate || '—' }} </td>
+            </ng-container>
+
+            <ng-container matColumnDef="privacy">
+              <th mat-header-cell *matHeaderCellDef> Privacidad </th>
+              <td mat-cell *matCellDef="let l"> {{ l.acceptedPrivacyAt ? (l.acceptedPrivacyAt | date:'yyyy-MM-dd HH:mm')
+                : '—' }} </td>
+            </ng-container>
+
+            <ng-container matColumnDef="terms">
+              <th mat-header-cell *matHeaderCellDef> Condiciones </th>
+              <td mat-cell *matCellDef="let l"> {{ l.acceptedTermsAt ? (l.acceptedTermsAt | date:'yyyy-MM-dd HH:mm') :
+                '—' }} </td>
+            </ng-container>
+
+            <tr mat-header-row *matHeaderRowDef="['createdAt','name','identifier','birthDate','privacy','terms']"></tr>
+            <tr mat-row *matRowDef="let row; columns: ['createdAt','name','identifier','birthDate','privacy','terms'];">
+            </tr>
+          </table>
+        </div>
+
+      </mat-expansion-panel>
+    </mat-accordion>
+  </ng-container>
 </mat-card>

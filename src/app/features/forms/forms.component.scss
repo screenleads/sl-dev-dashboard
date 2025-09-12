@@ -67,7 +67,6 @@ mat-icon {
 
     padding: 2rem;
     padding-bottom: 5.2rem;
-
 }
 
 .preview-actions {
@@ -78,4 +77,34 @@ mat-icon {
 
 #form-container {
     padding: 2rem;
+}
+
+.pwd-strength {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6px;
+    margin: -4px 0 8px 0;
+}
+
+.pwd-seg {
+    height: 6px;
+    border-radius: 4px;
+    background: #e0e0e0;
+    transition: background 150ms ease;
+}
+
+.pwd-seg.active:nth-child(1) {
+    background: #f44336;
+}
+
+.pwd-seg.active:nth-child(2) {
+    background: #ff9800;
+}
+
+.pwd-seg.active:nth-child(3) {
+    background: #8bc34a;
+}
+
+.pwd-seg.active:nth-child(4) {
+    background: #4caf50;
 }
