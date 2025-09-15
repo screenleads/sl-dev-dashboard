@@ -14,7 +14,6 @@ import { CrudService } from '../../core/services/crud.service';
 import { MetadataService, EntityInfo } from '../../core/services/meta-data.service';
 import { AuthenticationService } from '../../core/services/authentication/authentication.service';
 
-
 @Component({
   standalone: true,
   selector: 'app-lists',
@@ -443,9 +442,36 @@ export class ListsComponent implements OnDestroy {
 
   openAdviceDialog(deviceId: number): void {
     import('../device-advices-dialog/device-advices-dialog.component').then(m => {
-      this.dialog.open(m.DeviceAdvicesDialogComponent, {
+      const ref = this.dialog.open(m.DeviceAdvicesDialogComponent, {
         data: { deviceId },
         width: '600px'
+      });
+
+      ref.afterClosed().subscribe((result: { updated?: boolean, device?: any } | undefined) => {
+        if (result?.updated) {
+          const device = result.device ?? this.items().find(d => d.id === deviceId);
+          this.askRefreshAndTrigger(device);
+        }
+      });
+    });
+  }
+
+  /** Muestra confirmación y lanza el refresh en el dispositivo si acepta */
+  private askRefreshAndTrigger(device: any) {
+    const ok = confirm(
+      'Has asignado nuevos anuncios.\n¿Quieres refrescar ahora el dispositivo para que los descargue y los muestre?'
+    );
+    if (!ok) return;
+
+    import('../device-actions-dialog/device-actions-dialog.component').then(m => {
+      this.dialog.open(m.DeviceActionsDialogComponent, {
+        data: {
+          device,
+          roomId: (device?.uuid ?? device?.id ?? '').toString(),
+          auto: 'refreshAds' as const
+        },
+        width: '520px',
+        autoFocus: false
       });
     });
   }
@@ -472,10 +498,7 @@ export class ListsComponent implements OnDestroy {
     for (const col of set) {
       const controller = this.resolveControllerEntityForField(entityName, col, meta);
 
-      // No ocultamos primitivos de la propia entidad por defecto.
       if (!controller || controller === entityName) {
-        // Si quieres ocultarlos también cuando no hay <Entidad>Update, descomenta:
-        // if (!this.canUpdateEntity(controller ?? entityName)) denied.push(col);
         continue;
       }
 
@@ -589,7 +612,8 @@ export class ListsComponent implements OnDestroy {
       .map(w => w.charAt(0).toUpperCase() + w.slice(1))
       .join('');
   }
-  // Dentro de la clase ListsComponent (como miembros públicos)
+
+  // ---- Getters permisos usados en plantilla ----
   public get canCreateCurrent(): boolean {
     const name = this.currentEntityMeta?.entityName;
     if (!name) return false;
@@ -606,10 +630,9 @@ export class ListsComponent implements OnDestroy {
     return this.canEntity('delete', name);
   }
 
-  // Ayudante público para plantillas
   public canEntity(action: 'create' | 'update' | 'delete', entityPascal: string): boolean {
     const effective = (entityPascal === 'Role') ? 'User' : entityPascal;
-    const key = this.toLowerCamel(effective) + action[0].toUpperCase() + action.slice(1); // p.ej. companyUpdate
+    const key = this.toLowerCamel(effective) + action[0].toUpperCase() + action.slice(1);
     const me = this.auth.getUser();
     const roles = me?.roles ?? [];
     return roles.some((r: any) => r?.[key] === true);
@@ -618,18 +641,15 @@ export class ListsComponent implements OnDestroy {
   public isVideo(url: string | null | undefined): boolean {
     if (!url) return false;
     const u = String(url).toLowerCase();
-    // extensiones más comunes que ya usas en Media
     return u.endsWith('.mp4') || u.endsWith('.webm') || u.endsWith('.mov');
   }
+
   public thumbFromSrc(src: string, size = 320): string | null {
     if (!src) return null;
-
     try {
-      // Soporta https://storage.googleapis.com/... y firebasestorage.app
       const url = new URL(src);
-      const path = url.pathname; // p.ej. /screenleads.../media/videos/compressed-<base>.mp4
+      const path = url.pathname;
 
-      // Vídeo: /media/videos/compressed-<base>.mp4  -> /media/videos/thumbnails/{size}/thumb-{size}-<base>.jpg
       const mVid = path.match(/\/media\/videos\/compressed-([^\/]+)\.(mp4|mov|webm)$/i);
       if (mVid) {
         const base = mVid[1];
@@ -640,13 +660,11 @@ export class ListsComponent implements OnDestroy {
         return url.toString();
       }
 
-      // Imagen: /media/images/compressed-<base>.(jpg|png|webp|avif|jpeg) ->
-      //         /media/images/thumbnails/{size}/thumb-{size}-<base>.(misma extensión si existe, por compatibilidad usa jpg si no estás seguro)
       const mImg = path.match(/\/media\/images\/compressed-([^\/]+)\.(jpg|jpeg|png|webp|avif)$/i);
       if (mImg) {
         const base = mImg[1];
-        const ext = mImg[2].toLowerCase(); // tu función de status contempla jpg/png, aquí mantenemos la extensión original cuando sea lógico
-        const thumbExt = (ext === 'png') ? 'png' : 'jpg'; // si quieres forzar jpg siempre, pon 'jpg'
+        const ext = mImg[2].toLowerCase();
+        const thumbExt = (ext === 'png') ? 'png' : 'jpg';
         url.pathname = path.replace(
           /\/media\/images\/compressed-[^\/]+\.(jpg|jpeg|png|webp|avif)$/i,
           `/media/images/thumbnails/${size}/thumb-${size}-${base}.${thumbExt}`
@@ -654,7 +672,6 @@ export class ListsComponent implements OnDestroy {
         return url.toString();
       }
 
-      // Compatibilidad legacy: /media/compressed-<base>.<ext>
       const mLegacy = path.match(/\/media\/compressed-([^\/]+)\.(mp4|mov|webm|jpg|jpeg|png|webp|avif)$/i);
       if (mLegacy) {
         const base = mLegacy[1];
@@ -675,12 +692,9 @@ export class ListsComponent implements OnDestroy {
         return url.toString();
       }
 
-      // Si no coincide ningún patrón conocido, devolvemos null para que se use el src original.
       return null;
     } catch {
       return null;
     }
   }
-
-
 }

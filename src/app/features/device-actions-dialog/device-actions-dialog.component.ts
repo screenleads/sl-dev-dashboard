@@ -1,4 +1,4 @@
-import { Component, Inject } from '@angular/core';
+import { Component, Inject, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MAT_DIALOG_DATA, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
 import { MatButtonModule } from '@angular/material/button';
@@ -27,12 +27,12 @@ type DeviceAction = 'REFRESH_ADS' | 'RESTART_APP' | 'MAINTENANCE_MODE' | 'NOTIFY
     MatSnackBarModule
   ]
 })
-export class DeviceActionsDialogComponent {
+export class DeviceActionsDialogComponent implements OnInit {
 
   notifyForm!: FormGroup;
 
   constructor(
-    @Inject(MAT_DIALOG_DATA) public data: { device: any; roomId: string },
+    @Inject(MAT_DIALOG_DATA) public data: { device: any; roomId: string; auto?: DeviceAction | string },
     private dialogRef: MatDialogRef<DeviceActionsDialogComponent>,
     private fb: FormBuilder,
     private snack: MatSnackBar,
@@ -45,6 +45,13 @@ export class DeviceActionsDialogComponent {
 
     // Inicializa CrudService con /ws
     this.crud.init('ws');
+  }
+
+  ngOnInit(): void {
+    // Si el diálogo se abre con auto='REFRESH_ADS', lanza el refresco automáticamente
+    if (this.data?.auto === 'REFRESH_ADS') {
+      this.action('REFRESH_ADS');
+    }
   }
 
   action(act: DeviceAction) {

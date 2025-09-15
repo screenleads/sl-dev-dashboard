@@ -9,8 +9,9 @@
             <div class="advice-assignment">
                 <div class="advice-info">
                     <mat-icon mat-list-icon color="primary">campaign</mat-icon>
-                    <a [routerLink]="['/advice/edit/', advice.id]" class="preview-link"><span>{{ advice.description
-                            }}</span></a>
+                    <a [routerLink]="['/advice/edit/', advice.id]" class="preview-link">
+                        <span>{{ advice.description }}</span>
+                    </a>
                 </div>
                 <div class="advice-actions">
                     <ng-container *ngIf="!isAssigned(advice); else assignedBlock">
@@ -27,11 +28,13 @@
             </div>
         </mat-list-item>
     </mat-list>
+
     <p *ngIf="!allAdvices.length" class="empty-message">
         <mat-icon>info</mat-icon> No hay anuncios disponibles.
     </p>
 </mat-dialog-content>
 
 <mat-dialog-actions align="end">
-    <button mat-flat-button color="basic" mat-dialog-close>Cerrar</button>
+    <!-- Importante: usamos (click)="close()" para devolver {updated:true} si hubo cambios -->
+    <button mat-flat-button color="basic" (click)="close()">Cerrar</button>
 </mat-dialog-actions>

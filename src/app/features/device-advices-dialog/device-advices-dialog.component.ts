@@ -34,6 +34,9 @@ export class DeviceAdvicesDialogComponent implements OnInit {
   allAdvices: Advice[] = [];
   private service = inject(CrudService);
 
+  /** Marca si ha habido cambios (asignar/desasignar) para informar al padre */
+  private dirty = false;
+
   constructor(
     @Inject(MAT_DIALOG_DATA) public data: { deviceId: number },
     private dialogRef: MatDialogRef<DeviceAdvicesDialogComponent>,
@@ -72,6 +75,7 @@ export class DeviceAdvicesDialogComponent implements OnInit {
     this.service.init('devices');
     this.service.createCustom(`${this.deviceId}/advices/${adviceId}`, {}).subscribe({
       next: () => {
+        this.dirty = true; // Hubo cambio
         this.snackBar.open('Anuncio asignado correctamente', 'Cerrar', { duration: 3000 });
         this.fetchAssignedAdvices();
       },
@@ -81,9 +85,9 @@ export class DeviceAdvicesDialogComponent implements OnInit {
 
   unassignAdvice(adviceId: number) {
     this.service.init('devices');
-
     this.service.deleteCustom(`${this.deviceId}/advices/${adviceId}`, {}).subscribe({
       next: () => {
+        this.dirty = true; // Hubo cambio
         this.snackBar.open('Anuncio desasignado correctamente', 'Cerrar', { duration: 3000 });
         this.fetchAssignedAdvices();
       },
@@ -92,7 +96,11 @@ export class DeviceAdvicesDialogComponent implements OnInit {
   }
 
   close() {
-    this.dialogRef.close();
+    // Si hubo cambios, informa al padre para que pregunte por el refresh
+    if (this.dirty) {
+      this.dialogRef.close({ updated: true, deviceId: this.deviceId });
+    } else {
+      this.dialogRef.close();
+    }
   }
 }
-

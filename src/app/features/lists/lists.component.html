@@ -82,9 +82,8 @@
             </ng-container>
             <ng-template #noMediaTpl>—</ng-template>
           </div>
-          <!-- Otros campos: si hay link relacional, conviértelo en <a>.
-               (El link puede llevarte al edit de otra entidad; si quieres
-               bloquear navegación sin permiso, haz que linkForCell() devuelva null en ese caso.) -->
+
+          <!-- Otros campos -->
           <ng-container *ngSwitchDefault>
             <ng-container *ngIf="linkForCell(row, col) as link; else plainCell">
               <a [routerLink]="link">{{ renderCell(row, col) }}</a>
@@ -102,7 +101,7 @@
     <ng-container matColumnDef="acciones">
       <th mat-header-cell *matHeaderCellDef>Acciones</th>
       <td mat-cell *matCellDef="let row">
-        <!-- Acción específica de dispositivos -->
+        <!-- Acción específica de dispositivos: ASIGNAR ANUNCIOS -->
         <button mat-icon-button color="primary" *ngIf="titleList === 'Dispositivos'" (click)="openAdviceDialog(row.id)">
           <mat-icon>campaign</mat-icon>
         </button>
